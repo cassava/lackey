@@ -5,13 +5,13 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"os"
 	"runtime"
 
 	"github.com/goulash/errs"
 	"github.com/goulash/osutil"
+	flag "github.com/spf13/pflag"
 )
 
 var (
@@ -21,7 +21,9 @@ var (
 	TargetDirectory = ""
 	TargetQuality   = 2
 
+	DryRun      = false
 	FailOnError = false
+	NoUpdate    = false
 	LinkFiles   = false
 	OnlyMusic   = false
 
@@ -30,13 +32,15 @@ var (
 
 func init() {
 	flag.StringVar(&SourceDirectory, "source", SourceDirectory, "directory containing library of high-quality music")
-	flag.IntVar(&SourceMaxBitrate, "threshold", SourceMaxBitrate, "after what bitrate music is converted")
+	flag.IntVarP(&SourceMaxBitrate, "t", "threshold", SourceMaxBitrate, "after what bitrate music is converted")
 	flag.StringVar(&TargetDirectory, "target", TargetDirectory, "directory where converted files will be copied to")
 	flag.IntVar(&TargetQuality, "quality", TargetQuality, "target mp3 quality, from 0 to 9")
-	flag.BoolVar(&FailOnError, "fail", FailOnError, "do not continue when an error occurs")
-	flag.BoolVar(&LinkFiles, "link", LinkFiles, "make hard links where possible")
-	flag.BoolVar(&OnlyMusic, "only-music", OnlyMusic, "only copy music")
-	flag.IntVar(&Parallel, "parallel", Parallel, "run this many jobs at the same time")
+	flag.BoolVarP(&DryRun, "n", "dry-run", DryRun, "do not modify filesystem, just print what would happen")
+	flag.BoolVarP(&FailOnError, "f", "fail", FailOnError, "do not continue when an error occurs")
+	flag.BoolVar(&NoUpdate, "no-update", NoUpdate, "always copy/link/convert all files over")
+	flag.BoolVarP(&LinkFiles, "l", "link", LinkFiles, "make hard links where possible")
+	flag.BoolVarP(&OnlyMusic, "m", "only-music", OnlyMusic, "only copy music")
+	flag.IntVarP(&Parallel, "p", "parallel", Parallel, "run this many jobs at the same time")
 }
 
 func main() {
@@ -70,7 +74,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Fatal:", err)
 	}
-	if !ex {
+	if !ex && !DryRun {
 		os.MkdirAll(TargetDirectory, 0777)
 	}
 
@@ -79,8 +83,10 @@ func main() {
 		TargetCodec:      MP3,
 		TargetQuality:    TargetQuality,
 
-		OnlyMusic: OnlyMusic,
+		DryRun:    DryRun,
+		NoUpdate:  NoUpdate,
 		LinkFiles: LinkFiles,
+		OnlyMusic: OnlyMusic,
 		Parallel:  Parallel,
 	}
 

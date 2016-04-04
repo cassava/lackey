@@ -119,6 +119,10 @@ func ReadBitrateFromMP3(file string) (int, error) {
 	return int(br), nil
 }
 
+func ReadEncoderFromMP3(file string) (int, error) {
+	out, err := exec.Command("mid3v2", "--list")
+}
+
 func ConvertMusicFileToMP3(src, dst string, vbrQuality int) error {
 	ex, err := osutil.Exists(dst)
 	if err != nil {
@@ -134,6 +138,32 @@ func ConvertMusicFileToMP3(src, dst string, vbrQuality int) error {
 	q := strconv.FormatInt(int64(vbrQuality), 10)
 
 	return exec.Command("ffmpeg", "-i", src, "-qscale:a", q, dst).Run()
+}
+
+type Tag string
+
+const (
+	OriginalFilename Tag = "TOFN"
+	EncodedBy        Tag = "TENC"
+	EncoderSettings  Tag = "TSSE"
+	TextInfoFrame    Tag = "TXXX"
+)
+
+type Tags struct {
+	EncodedBy        string
+	EncoderSettings  string
+	OriginalFilename string
+}
+
+func WriteID3ToMP3(ts Tags) error {
+	args := make([]string, 0)
+	if ts.EncodedBy != "" {
+		args = append(args, "--"+EncodedBy, ts.EncodedBy)
+	}
+	if ts.EncoderSettings != "" {
+		args = append(args, "--", +EncoderSettings, ts.EncoderSettings)
+	}
+	// TODO: etc.
 }
 
 // }}}

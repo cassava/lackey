@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/Jeffail/tunny"
+	"github.com/goulash/cmp"
 	"github.com/goulash/color"
 	"github.com/goulash/errs"
 	"github.com/goulash/osutil"
@@ -22,6 +23,8 @@ type Walker struct {
 	SourceMaxBitrate int
 	TargetCodec      Codec
 	TargetQuality    int
+	DryRun           bool
+	NoUpdate         bool
 	LinkFiles        bool
 	OnlyMusic        bool
 	Parallel         int
@@ -95,7 +98,10 @@ func (w *walker) Walk() error {
 }
 
 func (w *walker) doDir(path string) error {
-	return os.MkdirAll(filepath.Join(w.dst, path), 0777)
+	if !w.opt.DryRun {
+		return os.MkdirAll(filepath.Join(w.dst, path), 0777)
+	}
+	return nil
 }
 
 func (w *walker) doFile(path string) error {
@@ -118,9 +124,29 @@ func (w *walker) doFile(path string) error {
 func (w *walker) copyFile(path string) error {
 	src := filepath.Join(w.src, path)
 	dst := filepath.Join(w.dst, path)
+
+	if !w.opt.NoUpdate && cmp.Compare(src, dst).IsEqual() {
+		col.Println("@gSkipping  \t", path)
+		return nil
+	}
+	if w.opt.DryRun {
+		col.Println("@yCopying   \t", path)
+		return nil
+	}
+
 	if w.opt.LinkFiles {
-		col.Println("@gCopying   \t", path)
-		return osutil.CopyFileLazy(src, dst)
+		ex, err := osutil.FileExists(dst)
+		if err != nil {
+			return err
+		}
+		if ex {
+			os.Remove(dst)
+		}
+		err = os.Link(src, dst)
+		if err == nil {
+			col.Println("@gLinked    \t", path)
+			return nil
+		}
 	}
 	col.Println("@yCopying   \t", path)
 	return osutil.CopyFile(src, dst)
@@ -162,6 +188,11 @@ func (w *walker) doMusic(path string) error {
 		}
 
 		col.Println("@rConverting\t", path)
+		if w.opt.DryRun {
+			w.wg.Done()
+			return
+		}
+
 		err := ConvertMusicFile(src, dst, w.opt.TargetQuality)
 		if err != nil {
 			err = w.uhoh(err)
