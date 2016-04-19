@@ -9,10 +9,39 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/goulash/color"
 	"github.com/goulash/errs"
 	"github.com/goulash/osutil"
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/cobra"
 )
+
+// col lets us print in colors.
+var col = color.New()
+
+type Configuration struct {
+	SourceDirectory  string
+	SourceMaxBitrate int
+	TargetDirectory  string
+	TargetQuality    int
+
+	DryRun      bool
+	FailOnError bool
+	NoUpdate    bool
+	LinkFiles   bool
+	OnlyMusic   bool
+
+	Parallel int
+}
+
+var MainCmd = &cobra.Command{
+	Use:   "lackey",
+	Short: "Convert your high-quality music collection",
+	Long: `Lackey converts your high-quality music collection to a lower-quality
+one that can be used on-the-go, for example on your MP3-player.
+
+It does modify your high-quality music collection in any way to this end.
+`,
+}
 
 var (
 	SourceDirectory  = ""
