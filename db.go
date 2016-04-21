@@ -4,7 +4,16 @@
 
 package lackey
 
-import "path/filepath"
+import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/cassava/lackey/music"
+)
+
+// Entry and EntryType {{{
 
 type EntryType int
 
@@ -13,7 +22,7 @@ const (
 	FileEntry
 	MusicEntry
 
-	UnknownEntry EntryType = 0
+	ErrorEntry EntryType = 0
 )
 
 type Entry struct {
@@ -21,8 +30,9 @@ type Entry struct {
 	parent   *Entry
 	children []*Entry
 
+	path  string // path relative to database root
+	fi    os.FileInfo
 	typ   EntryType   // entry type (dir|file|music)
-	path  string      // path relative to database root
 	bytes int64       // cumulative size of entry
 	data  interface{} // any extra data stored with this entry
 }
@@ -67,8 +77,8 @@ func (e *Entry) Filename() string {
 
 func (e *Entry) FilenameExt() (base string, ext string) {
 	name := filepath.Base(e.path)
-	ext := filepath.Ext(e.path)
-	base := name[:len(base)-len(ext)]
+	ext = filepath.Ext(e.path)
+	base = name[:len(base)-len(ext)]
 	return base, ext
 }
 
@@ -77,17 +87,25 @@ func (e *Entry) RelPath() string {
 }
 
 func (e *Entry) AbsPath() string {
-	return filepath.Join(e.db.path, e.path)
+	return filepath.Join(e.db.Path(), e.path)
 }
 
 func (e *Entry) RootPath() string {
-	return e.db.path
+	return e.db.Path()
 }
+
+// }}}
+
+// Database {{{
 
 type Database struct {
 	path    string
 	root    *Entry
 	entries map[string]*Entry
+}
+
+func (db *Database) Path() string {
+	return db.path
 }
 
 func (db *Database) Size() int64 {
@@ -98,3 +116,83 @@ func (db *Database) Size() int64 {
 func (db *Database) Get(key string) *Entry {
 	return db.entries[key]
 }
+
+func (db *Database) Set(key string, e *Entry) {
+	db.entries[key] = e
+}
+
+// init populates the entry with all the relevant informations.
+// It is expected that e.parent and e.db are already set.
+func (e *Entry) init(path string, fi os.FileInfo, err error) {
+	defer e.db.Set(path, e)
+	fmt.Println("Init:", path)
+
+	abs := filepath.Join(e.db.Path(), path)
+	e.path = path
+	e.fi = fi
+
+	if err != nil {
+		e.typ = ErrorEntry
+		e.data = err
+		return
+	}
+
+	if fi.IsDir() {
+		e.typ = DirEntry
+		filepath.Walk(abs, func(path string, fi os.FileInfo, err error) error {
+			v := &Entry{
+				db:     e.db,
+				parent: e,
+			}
+			v.init(path, fi, err)
+			e.children = append(e.children, v)
+			e.bytes += v.bytes
+
+			// filepath.Walk should not recurse, because v.init does that already.
+			if fi != nil && fi.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		})
+		return
+	}
+
+	if c, err := music.Identify(abs); c == music.Unknown {
+		e.typ = FileEntry
+		e.data = err
+	}
+
+	e.bytes = fi.Size()
+	e.typ = MusicEntry
+	m, err := music.ReadMetadata(abs)
+	if err != nil {
+		e.data = err
+		return
+	}
+	e.data = m
+}
+
+func ReadLibrary(path string) (*Database, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !fi.IsDir() {
+		return nil, errors.New("library path must be a directory")
+	}
+
+	db := &Database{
+		path:    abs,
+		entries: make(map[string]*Entry),
+	}
+	db.root = &Entry{db: db}
+	db.root.init(path, fi, nil)
+	return db, nil
+}
+
+// }}}
