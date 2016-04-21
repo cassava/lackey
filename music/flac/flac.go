@@ -181,7 +181,6 @@ type Metadata struct {
 }
 
 func (m *Metadata) Year() int                { return m.rawInt("date") }
-func (m *Metadata) AlbumArtist() string      { return m.rawString("albumartist") }
 func (m *Metadata) Length() time.Duration    { return m.length }
 func (m *Metadata) Comment() string          { return m.rawString("comment") }
 func (m *Metadata) Website() string          { return m.rawString("contact") }
