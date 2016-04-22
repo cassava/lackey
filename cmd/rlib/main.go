@@ -38,7 +38,7 @@ func PrintEntryWithPrefix(e *lackey.Entry, prefix string) {
 	case lackey.MusicEntry:
 		if m, ok := e.Data().(audio.Metadata); ok {
 			n, _ := m.Track()
-			col.Printf("%s@g%d-%s@| (%s)\n", prefix, n, m.Title(), m.Encoding())
+			col.Printf("%s@g%02d-%s@| (%s)\n", prefix, n, m.Title(), m.Encoding())
 			break
 		}
 		fallthrough
