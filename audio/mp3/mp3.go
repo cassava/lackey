@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cassava/lackey/music"
 	"github.com/dhowden/tag"
+	"github.com/goulash/audio"
 )
 
 var ErrNotMP3 = errors.New("file is not an MP3")
@@ -68,7 +68,7 @@ func ReadMetadata(file string) (*Metadata, error) {
 		Metadata: tm,
 		length:   d,
 		bitrate:  b,
-		codec:    music.MP3,
+		codec:    audio.MP3,
 	}, nil
 }
 
@@ -91,7 +91,7 @@ func init() {
 	}
 	if found {
 		// Ensure that the programs we need for getting the metadata are available.
-		music.MetadataReaders[music.MP3] = func(file string) (music.Metadata, error) {
+		audio.MetadataReaders[audio.MP3] = func(file string) (audio.Metadata, error) {
 			return ReadMetadata(file)
 		}
 	}
@@ -132,7 +132,7 @@ func exiftool(_ string) (int, time.Duration, error) {
 
 // WriteMetadata {{{
 
-func WriteMetadata(file string, m music.Metadata) error {
+func WriteMetadata(file string, m audio.Metadata) error {
 	return errors.New("not implemented")
 }
 
@@ -140,7 +140,7 @@ func WriteMetadata(file string, m music.Metadata) error {
 
 // Metadata {{{
 
-var _ = music.Metadata(new(Metadata))
+var _ = audio.Metadata(new(Metadata))
 
 type Metadata struct {
 	// Metadata is an interface that already implements:
@@ -165,7 +165,7 @@ type Metadata struct {
 
 	length  time.Duration
 	bitrate int
-	codec   music.Codec
+	codec   audio.Codec
 }
 
 func (m *Metadata) Year() int {
@@ -189,7 +189,7 @@ func (m *Metadata) Length() time.Duration    { return m.length }
 func (m *Metadata) Comment() string          { return m.rawString("CXXX") }
 func (m *Metadata) Website() string          { return m.rawComment("WXXX") }
 func (m *Metadata) Copyright() string        { return m.rawString("TCOP") }
-func (m *Metadata) Encoding() music.Codec    { return m.codec }
+func (m *Metadata) Encoding() audio.Codec    { return m.codec }
 func (m *Metadata) EncodedBy() string        { return m.rawString("TENC") }
 func (m *Metadata) EncodingBitrate() int     { return m.bitrate }
 func (m *Metadata) EncoderSettings() string  { return m.rawString("TSSE") }
