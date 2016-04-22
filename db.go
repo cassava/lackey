@@ -67,6 +67,28 @@ func (e *Entry) Size() int64 {
 	return e.bytes
 }
 
+func (e *Entry) SizeString() string {
+	const (
+		kB = 1000
+		MB = 1000 * 1000
+		GB = 1000 * 1000 * 1000
+		TB = 1000 * 1000 * 1000 * 1000
+	)
+
+	z := float64(e.bytes)
+	if z < kB {
+		return fmt.Sprintf("%d B", e.bytes)
+	} else if z < MB {
+		return fmt.Sprintf("%.3f kB", z/kB)
+	} else if z < GB {
+		return fmt.Sprintf("%.3f MB", z/MB)
+	} else if z < TB {
+		return fmt.Sprintf("%.3f GB", z/GB)
+	} else {
+		return fmt.Sprintf("%.3f TB", z/TB)
+	}
+}
+
 func (e *Entry) Type() EntryType {
 	return e.typ
 }
@@ -112,6 +134,13 @@ func (db *Database) Size() int64 {
 	return db.root.Size()
 }
 
+func (db *Database) SizeString() string {
+	return db.root.SizeString()
+}
+func (db *Database) Root() *Entry {
+	return db.root
+}
+
 // Get returns the entry that has the given key, or nil.
 func (db *Database) Get(key string) *Entry {
 	return db.entries[key]
@@ -125,9 +154,9 @@ func (db *Database) Set(key string, e *Entry) {
 // It is expected that e.parent and e.db are already set.
 func (e *Entry) init(path string, fi os.FileInfo, err error) {
 	defer e.db.Set(path, e)
-	fmt.Println("Init:", path)
 
-	abs := filepath.Join(e.db.Path(), path)
+	root := e.db.Path()
+	abs := filepath.Join(root, path)
 	e.path = path
 	e.fi = fi
 
@@ -140,6 +169,11 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 	if fi.IsDir() {
 		e.typ = DirEntry
 		filepath.Walk(abs, func(path string, fi os.FileInfo, err error) error {
+			if path == abs {
+				return nil
+			}
+
+			path, _ = filepath.Rel(root, path)
 			v := &Entry{
 				db:     e.db,
 				parent: e,
@@ -191,7 +225,7 @@ func ReadLibrary(path string) (*Database, error) {
 		entries: make(map[string]*Entry),
 	}
 	db.root = &Entry{db: db}
-	db.root.init(path, fi, nil)
+	db.root.init(".", fi, nil)
 	return db, nil
 }
 
