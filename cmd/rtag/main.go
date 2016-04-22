@@ -9,16 +9,16 @@ import (
 
 	"github.com/goulash/color"
 
-	"github.com/cassava/lackey/music"
-	_ "github.com/cassava/lackey/music/flac"
-	_ "github.com/cassava/lackey/music/mp3"
+	_ "github.com/cassava/lackey/audio/mp3"
+	"github.com/goulash/audio"
+	_ "github.com/goulash/audio/flac"
 )
 
 var col = color.New()
 
 func printMetadata(file string) {
 	col.Printf("@!%s\n", file)
-	m, err := music.ReadMetadata(file)
+	m, err := audio.ReadMetadata(file)
 	if err != nil {
 		col.Printf("\t@r%s\n", err)
 		return
@@ -46,7 +46,6 @@ func printMetadata(file string) {
 	col.Printf("\tEncoding bitrate: %d Kbps\n", m.EncodingBitrate())
 	col.Println()
 	col.Printf("\tOriginal filename: %s\n", m.OriginalFilename())
-	col.Printf("\tPrivate data:      %q\n", string(m.PrivateData()))
 }
 
 func main() {
