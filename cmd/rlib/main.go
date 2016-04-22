@@ -15,10 +15,11 @@ import (
 
 	"github.com/goulash/color"
 
+	"github.com/goulash/audio"
+	_ "github.com/goulash/audio/flac"
+
 	"github.com/cassava/lackey"
-	"github.com/cassava/lackey/music"
-	_ "github.com/cassava/lackey/music/flac"
-	_ "github.com/cassava/lackey/music/mp3"
+	_ "github.com/cassava/lackey/audio/mp3"
 )
 
 var col = color.New()
@@ -35,7 +36,7 @@ func PrintEntryWithPrefix(e *lackey.Entry, prefix string) {
 	case lackey.FileEntry:
 		col.Printf("%s@y%s\n", prefix, e.Filename())
 	case lackey.MusicEntry:
-		if m, ok := e.Data().(music.Metadata); ok {
+		if m, ok := e.Data().(audio.Metadata); ok {
 			n, _ := m.Track()
 			col.Printf("%s@g%d-%s@| (%s)\n", prefix, n, m.Title(), m.Encoding())
 			break

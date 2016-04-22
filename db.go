@@ -10,7 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cassava/lackey/music"
+	"github.com/goulash/audio"
 )
 
 // Entry and EntryType {{{
@@ -191,14 +191,15 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 		return
 	}
 
-	if c, err := music.Identify(abs); c == music.Unknown {
+	e.bytes = fi.Size()
+	if c, err := audio.Identify(abs); c == audio.Unknown {
 		e.typ = FileEntry
 		e.data = err
+		return
 	}
 
-	e.bytes = fi.Size()
 	e.typ = MusicEntry
-	m, err := music.ReadMetadata(abs)
+	m, err := audio.ReadMetadata(abs)
 	if err != nil {
 		e.data = err
 		return
