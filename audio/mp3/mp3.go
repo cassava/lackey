@@ -16,15 +16,18 @@ import (
 	"github.com/dhowden/tag"
 	"github.com/goulash/audio"
 	"github.com/goulash/stat"
+	"github.com/tcolgate/mp3"
 )
 
 var ErrNotMP3 = errors.New("file is not an MP3")
 
 var Stats struct {
-	Assert       stat.Run
-	ReadMetadata stat.Run
-	ToolMP3INFO  stat.Run
-	ToolEXIFTOOL stat.Run
+	Assert           stat.Run
+	ReadMetadata     stat.Run
+	ReadMetadataMeta stat.Run
+	ReadMetadataBrDu stat.Run
+	ToolMP3INFO      stat.Run
+	ToolEXIFTOOL     stat.Run
 }
 
 func Assert(file string) error {
@@ -53,17 +56,34 @@ var metaReader = func(_ string) (int, time.Duration, error) {
 	return 0, 0, errors.New("system program to read bitrate and song length missing")
 }
 
+/*
+Runtime stats:
+  audio.Identify        μ=5.221595ms, σ=6.688962ms, n=12233
+  audio.ReadMetadata    μ=69.826077ms, σ=89.871762ms, n=4694
+  flac.Identify         μ=-2562047h47m16.854775808s, σ=-2562047h47m16.854775808s, n=0
+  flac.ReadFileMetadata μ=2.412411ms, σ=4.72771ms, n=2399
+  flac.ReadMetadata     μ=2.399813ms, σ=4.72703ms, n=2399
+  mp3.Assert            μ=11.714µs, σ=2.509µs, n=2295
+  mp3.ReadMetadata      μ=140.255738ms, σ=82.368328ms, n=2295
+
+Runtime stats:
+  audio.Identify        μ=5.497306ms, σ=6.697311ms, n=12233
+  audio.ReadMetadata    μ=71.437403ms, σ=96.427961ms, n=4694
+  flac.Identify         μ=-2562047h47m16.854775808s, σ=-2562047h47m16.854775808s, n=0
+  flac.ReadFileMetadata μ=2.538888ms, σ=5.32524ms, n=2399
+  flac.ReadMetadata     μ=2.526025ms, σ=5.324577ms, n=2399
+  mp3.Assert            μ=11.556µs, σ=2.889µs, n=2295
+  mp3.ReadMetadata      μ=143.417326ms, σ=94.047081ms, n=2295
+  mp3.ReadMetadataMeta  μ=2.657978ms, σ=5.662125ms, n=2295
+  mp3.ReadMetadataBrDu  μ=140.729045ms, σ=92.607449ms, n=2295
+  mp3.ToolMP3INFO       μ=-2562047h47m16.854775808s, σ=-2562047h47m16.854775808s, n=0
+  mp3.ToolEXIFTOOL      μ=-2562047h47m16.854775808s, σ=-2562047h47m16.854775808s, n=0
+*/
 func ReadMetadata(file string) (*Metadata, error) {
 	start := time.Now()
 	defer func() { Stats.ReadMetadata.Add(float64(time.Since(start))) }()
 
 	if err := Assert(file); err != nil {
-		return nil, err
-	}
-
-	// Read length and bitrate
-	b, d, err := metaReader(file)
-	if err != nil {
 		return nil, err
 	}
 
@@ -73,15 +93,34 @@ func ReadMetadata(file string) (*Metadata, error) {
 	}
 	defer f.Close()
 
+	// Read metadata (quick 2ms)
+	s1 := time.Now()
 	tm, err := tag.ReadFrom(f)
 	if err != nil {
 		return nil, err
 	}
+	Stats.ReadMetadataMeta.Add(float64(time.Since(s1)))
+
+	// Read length and bitrate (slow 140ms)
+	s2 := time.Now()
+	f.Seek(0, 0)
+	dec := mp3.NewDecoder(f)
+	var (
+		frame mp3.Frame
+		dur   time.Duration
+		bytes int64
+	)
+	for dec.Decode(&frame) == nil {
+		dur += frame.Duration()
+		bytes += int64(frame.Size())
+	}
+	kbps := (bytes * 8) / int64(dur*1000/time.Second)
+	Stats.ReadMetadataBrDu.Add(float64(time.Since(s2)))
 
 	return &Metadata{
 		Metadata: tm,
-		length:   d,
-		bitrate:  b,
+		length:   dur,
+		bitrate:  int(kbps),
 		codec:    audio.MP3,
 	}, nil
 }

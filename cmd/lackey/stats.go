@@ -5,23 +5,29 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/cassava/lackey"
+	"github.com/cassava/lackey/audio/mp3"
 	"github.com/goulash/audio"
+	"github.com/goulash/audio/flac"
+	"github.com/goulash/stat"
 	"github.com/goulash/units"
 	"github.com/spf13/cobra"
 )
 
 var (
 	showStandard bool
+	showRuntime  bool
 )
 
 func init() {
 	MainCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&showStandard, "standard", "s", false, "show standard statistics")
+	statsCmd.Flags().BoolVarP(&showRuntime, "runtime", "r", false, "show runtime statistics")
 }
 
 var statsCmd = &cobra.Command{
@@ -40,6 +46,9 @@ var statsCmd = &cobra.Command{
 			return err
 		}
 
+		if showRuntime {
+			runtimeStats()
+		}
 		if showStandard {
 			standardStats(db)
 		}
@@ -100,4 +109,23 @@ func standardStats(db *lackey.Database) {
 	col.Printf("  @!Album artists@| %d\n", len(albumartists))
 	col.Printf("  @!Genres@|        %d\n", len(genres))
 	col.Printf("  @!Composers@|     %d\n", len(composers))
+}
+
+func runtimeStats() {
+	stats := func(r *stat.Run) string {
+		return fmt.Sprintf("μ=%s, σ=%s, n=%d", time.Duration(r.Mean()), time.Duration(r.Std()), r.N())
+	}
+
+	col.Printf("Runtime stats:\n")
+	col.Printf("  audio.@!Identify@|        %s\n", stats(&audio.Stats.Identify))
+	col.Printf("  audio.@!ReadMetadata@|    %s\n", stats(&audio.Stats.ReadMetadata))
+	col.Printf("  flac.@!Identify@|         %s\n", stats(&flac.Stats.Identify))
+	col.Printf("  flac.@!ReadFileMetadata@| %s\n", stats(&flac.Stats.ReadFileMetadata))
+	col.Printf("  flac.@!ReadMetadata@|     %s\n", stats(&flac.Stats.ReadMetadata))
+	col.Printf("  mp3.@!Assert@|            %s\n", stats(&mp3.Stats.Assert))
+	col.Printf("  mp3.@!ReadMetadata@|      %s\n", stats(&mp3.Stats.ReadMetadata))
+	col.Printf("  mp3.@!ReadMetadataMeta@|  %s\n", stats(&mp3.Stats.ReadMetadataMeta))
+	col.Printf("  mp3.@!ReadMetadataBrDu@|  %s\n", stats(&mp3.Stats.ReadMetadataBrDu))
+	col.Printf("  mp3.@!ToolMP3INFO@|       %s\n", stats(&mp3.Stats.ToolMP3INFO))
+	col.Printf("  mp3.@!ToolEXIFTOOL@|      %s\n", stats(&mp3.Stats.ToolEXIFTOOL))
 }
