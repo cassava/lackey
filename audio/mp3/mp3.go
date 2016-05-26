@@ -15,11 +15,22 @@ import (
 
 	"github.com/dhowden/tag"
 	"github.com/goulash/audio"
+	"github.com/goulash/stat"
 )
 
 var ErrNotMP3 = errors.New("file is not an MP3")
 
+var Stats struct {
+	Assert       stat.Run
+	ReadMetadata stat.Run
+	ToolMP3INFO  stat.Run
+	ToolEXIFTOOL stat.Run
+}
+
 func Assert(file string) error {
+	start := time.Now()
+	defer func() { Stats.Assert.Add(float64(time.Since(start))) }()
+
 	f, err := os.Open(file)
 	if err != nil {
 		return err
@@ -43,6 +54,9 @@ var metaReader = func(_ string) (int, time.Duration, error) {
 }
 
 func ReadMetadata(file string) (*Metadata, error) {
+	start := time.Now()
+	defer func() { Stats.ReadMetadata.Add(float64(time.Since(start))) }()
+
 	if err := Assert(file); err != nil {
 		return nil, err
 	}
@@ -98,6 +112,9 @@ func init() {
 }
 
 func mp3info(file string) (r int, d time.Duration, err error) {
+	start := time.Now()
+	defer func() { Stats.ToolMP3INFO.Add(float64(time.Since(start))) }()
+
 	cmd := exec.Command("mp3info", "-r", "m", "-p", "%r\t%Ss", file)
 	bs, err := cmd.Output()
 	if err != nil {
@@ -125,6 +142,9 @@ func mp3info(file string) (r int, d time.Duration, err error) {
 }
 
 func exiftool(_ string) (int, time.Duration, error) {
+	start := time.Now()
+	defer func() { Stats.ToolEXIFTOOL.Add(float64(time.Since(start))) }()
+
 	return 0, 0, errors.New("not implemented")
 }
 
