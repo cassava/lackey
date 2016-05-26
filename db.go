@@ -6,12 +6,16 @@ package lackey
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/goulash/audio"
+
+	_ "github.com/cassava/lackey/audio/mp3"
+	_ "github.com/goulash/audio/flac"
 )
+
+var Skip = errors.New("skip the directory or remaining files in directory")
 
 // Entry and EntryType {{{
 
@@ -41,6 +45,10 @@ func (e *Entry) Key() string {
 	return e.path
 }
 
+func (e *Entry) FileInfo() os.FileInfo {
+	return e.fi
+}
+
 func (e *Entry) IsDir() bool {
 	return e.typ == DirEntry
 }
@@ -61,32 +69,35 @@ func (e *Entry) Data() interface{} {
 	return e.data
 }
 
+func (e *Entry) Walk(fn func(e *Entry) error) error {
+	if e.IsDir() {
+		err := fn(e)
+		if err != nil {
+			if err == Skip {
+				return nil
+			}
+			return err
+		}
+
+		for _, c := range e.children {
+			err = c.Walk(fn)
+			if err != nil {
+				if err == Skip {
+					return nil
+				}
+				return err
+			}
+		}
+		return nil
+	} else {
+		return fn(e)
+	}
+}
+
 // Size returns the size of the entry in bytes.
 // A directory's size is the size of all its children.
 func (e *Entry) Size() int64 {
 	return e.bytes
-}
-
-func (e *Entry) SizeString() string {
-	const (
-		kB = 1000
-		MB = 1000 * 1000
-		GB = 1000 * 1000 * 1000
-		TB = 1000 * 1000 * 1000 * 1000
-	)
-
-	z := float64(e.bytes)
-	if z < kB {
-		return fmt.Sprintf("%d B", e.bytes)
-	} else if z < MB {
-		return fmt.Sprintf("%.3f kB", z/kB)
-	} else if z < GB {
-		return fmt.Sprintf("%.3f MB", z/MB)
-	} else if z < TB {
-		return fmt.Sprintf("%.3f GB", z/GB)
-	} else {
-		return fmt.Sprintf("%.3f TB", z/TB)
-	}
 }
 
 func (e *Entry) Type() EntryType {
@@ -134,9 +145,6 @@ func (db *Database) Size() int64 {
 	return db.root.Size()
 }
 
-func (db *Database) SizeString() string {
-	return db.root.SizeString()
-}
 func (db *Database) Root() *Entry {
 	return db.root
 }
@@ -148,6 +156,10 @@ func (db *Database) Get(key string) *Entry {
 
 func (db *Database) Set(key string, e *Entry) {
 	db.entries[key] = e
+}
+
+func (db *Database) Walk(fn func(e *Entry) error) error {
+	return db.root.Walk(fn)
 }
 
 // init populates the entry with all the relevant informations.

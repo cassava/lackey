@@ -5,130 +5,79 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"os"
-	"runtime"
 
 	"github.com/goulash/color"
-	"github.com/goulash/errs"
-	"github.com/goulash/osutil"
 	"github.com/spf13/cobra"
 )
+
+// Conf loads and stores the configuration (apart from command line
+// configuration) of this program, including where the repository is.
+var Conf struct {
+	LibraryPath string
+	Verbose     bool
+	Color       string
+}
 
 // col lets us print in colors.
 var col = color.New()
 
-type Configuration struct {
-	SourceDirectory  string
-	SourceMaxBitrate int
-	TargetDirectory  string
-	TargetQuality    int
+type UsageError struct {
+	Cmd   string
+	Msg   string
+	Usage func() error
+}
 
-	DryRun      bool
-	FailOnError bool
-	NoUpdate    bool
-	LinkFiles   bool
-	OnlyMusic   bool
-
-	Parallel int
+func (e *UsageError) Error() string {
+	return fmt.Sprintf("%s", e.Msg)
 }
 
 var MainCmd = &cobra.Command{
 	Use:   "lackey",
-	Short: "Convert your high-quality music collection",
-	Long: `Lackey converts your high-quality music collection to a lower-quality
-one that can be used on-the-go, for example on your MP3-player.
-
-It does modify your high-quality music collection in any way to this end.
+	Short: "manage your high-quality music library",
+	Long: `Lackey primarily helps you keep a lower-quality mirror of your
+primary high-quality music library. For example, you may have FLACs of your
+music, but want an up-to-date MP3 mirror of this.
 `,
-}
-
-var (
-	SourceDirectory  = ""
-	SourceMaxBitrate = 256
-
-	TargetDirectory = ""
-	TargetQuality   = 2
-
-	DryRun      = false
-	FailOnError = false
-	NoUpdate    = false
-	LinkFiles   = false
-	OnlyMusic   = false
-
-	Parallel = runtime.NumCPU()
-)
-
-func init() {
-	flag.StringVar(&SourceDirectory, "source", SourceDirectory, "directory containing library of high-quality music")
-	flag.IntVarP(&SourceMaxBitrate, "t", "threshold", SourceMaxBitrate, "after what bitrate music is converted")
-	flag.StringVar(&TargetDirectory, "target", TargetDirectory, "directory where converted files will be copied to")
-	flag.IntVar(&TargetQuality, "quality", TargetQuality, "target mp3 quality, from 0 to 9")
-	flag.BoolVarP(&DryRun, "n", "dry-run", DryRun, "do not modify filesystem, just print what would happen")
-	flag.BoolVarP(&FailOnError, "f", "fail", FailOnError, "do not continue when an error occurs")
-	flag.BoolVar(&NoUpdate, "no-update", NoUpdate, "always copy/link/convert all files over")
-	flag.BoolVarP(&LinkFiles, "l", "link", LinkFiles, "make hard links where possible")
-	flag.BoolVarP(&OnlyMusic, "m", "only-music", OnlyMusic, "only copy music")
-	flag.IntVarP(&Parallel, "p", "parallel", Parallel, "run this many jobs at the same time")
-}
-
-func main() {
-	flag.Parse()
-
-	// We need to be able to run at least one job at a time.
-	if Parallel <= 0 {
-		log.Fatal("Fatal: parallel value must be at least 1")
-	}
-
-	// Source directory should exist.
-	ex, err := osutil.DirExists(SourceDirectory)
-	if err != nil {
-		log.Fatal("Fatal:", err)
-	}
-	if !ex {
-		log.Fatal("Fatal: source directory does not exist:", SourceDirectory)
-	}
-
-	if SourceMaxBitrate < 32 || 500 < SourceMaxBitrate {
-		log.Fatal("Fatal: source bitrate threshold should be between 32 and 500")
-	}
-
-	// Target quality should be between 0 and 9
-	if TargetQuality < 0 || 9 < TargetQuality {
-		log.Fatal("Fatal: target quality should be between 0 (highest) and 9 (lowest)")
-	}
-
-	// Target directory should exist, create it otherwise.
-	ex, err = osutil.DirExists(TargetDirectory)
-	if err != nil {
-		log.Fatal("Fatal:", err)
-	}
-	if !ex && !DryRun {
-		os.MkdirAll(TargetDirectory, 0777)
-	}
-
-	w := Walker{
-		SourceMaxBitrate: SourceMaxBitrate,
-		TargetCodec:      MP3,
-		TargetQuality:    TargetQuality,
-
-		DryRun:    DryRun,
-		NoUpdate:  NoUpdate,
-		LinkFiles: LinkFiles,
-		OnlyMusic: OnlyMusic,
-		Parallel:  Parallel,
-	}
-
-	eh := func(err error) error {
-		log.Println("Error:", err)
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		// This function can be overriden if it's not necessary for a command.
+		cmd.SilenceErrors = true
+		cmd.SilenceUsage = true
 		return nil
-	}
-	if FailOnError {
-		eh = errs.Quit
-	}
+	},
+}
 
-	err = w.Walk(SourceDirectory, TargetDirectory, eh)
+// main loads the configuration and executes the primary command.
+func main() {
+	/*
+		err := Conf.MergeAll()
+		if err != nil {
+			// We didn't manage to load any configuration, which means that repoctl
+			// is unconfigured. There are some commands that work nonetheless, so
+			// we can't stop now -- which is why we don't os.Exit(1).
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+		}
+	*/
+
+	// Arguments from the command line override the configuration file,
+	// so we have to add the flags after loading the configuration.
+	//
+	// TODO: Maybe in the future we will make it possible to specify the
+	// configuration file via the command line; right now it is not a priority.
+	col.Set(Conf.Color) // set default, which will be auto if Conf.Color is empty or invalid
+	MainCmd.PersistentFlags().Var(col, "color", "when to use color (auto|never|always)")
+	MainCmd.PersistentFlags().BoolVarP(&Conf.Verbose, "verbose", "v", Conf.Verbose, "show minimal amount of information")
+	MainCmd.PersistentFlags().StringVarP(&Conf.LibraryPath, "library", "L", "", "path to primary library")
+
+	err := MainCmd.Execute()
 	if err != nil {
-		log.Fatal(err)
+		if MainCmd.SilenceErrors {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+			if e, ok := err.(*UsageError); ok {
+				e.Usage()
+			}
+		}
+		os.Exit(1)
 	}
 }
