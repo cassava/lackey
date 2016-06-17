@@ -6,6 +6,7 @@ package main
 
 import (
 	"errors"
+	"runtime"
 
 	"github.com/cassava/lackey"
 	"github.com/spf13/cobra"
@@ -16,12 +17,14 @@ var (
 	syncDryRun           bool
 	syncOnlyMusic        bool
 	syncForceTranscode   bool
+	syncConcurrent       int
 	syncBitrateThreshold int
 	syncTargetQuality    int
 )
 
 func init() {
 	MainCmd.AddCommand(syncCmd)
+	syncCmd.Flags().IntVarP(&syncConcurrent, "concurrent", "w", runtime.NumCPU(), "number of concurrent workers")
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
 	syncCmd.Flags().BoolVarP(&syncForceTranscode, "force", "f", false, "force transcode for all audio")
 	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target mp3 quality")
@@ -63,6 +66,7 @@ var syncCmd = &cobra.Command{
 		p := lackey.NewPlanner(sdb, ddb, op)
 		p.IgnoreData = syncOnlyMusic
 		p.DeleteBefore = syncDeleteBefore
+		p.Concurrent = syncConcurrent
 		return p.Plan()
 	},
 }

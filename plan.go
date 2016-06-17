@@ -8,9 +8,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 
 	"github.com/goulash/audio"
 	"github.com/goulash/osutil"
+	"github.com/jeffail/tunny"
 )
 
 type AudioOperation int
@@ -72,14 +75,22 @@ type Planner struct {
 	IgnoreData   bool
 	DeleteBefore bool
 	TranscodeAll bool
+	Concurrent   int
 
 	op  Operator
 	src *Database
 	dst *Database
+
+	pool *tunny.WorkPool
+	errs chan error
+	mut  sync.RWMutex
+	quit error
 }
 
 func NewPlanner(src, dst *Database, op Operator) *Planner {
 	return &Planner{
+		Concurrent: runtime.NumCPU(),
+
 		op:  op,
 		src: src,
 		dst: dst,
@@ -98,7 +109,24 @@ func (p *Planner) Plan() error {
 	if !dst.IsDir() {
 		return errors.New("dst must be a directory")
 	}
-	return p.planDir(src, dst)
+
+	p.errs = make(chan error, 1)
+	p.pool = tunny.CreatePoolGeneric(p.Concurrent)
+	defer p.pool.Close()
+
+	go func() {
+		for e := range p.errs {
+			err := p.op.Warn(e)
+			if err != nil {
+				p.quit = err
+				break
+			}
+		}
+	}()
+
+	err := p.planDir(src, dst)
+	p.mut.Lock()
+	return err
 }
 
 func (p *Planner) planDir(src, dst *Entry) error {
@@ -132,6 +160,11 @@ func (p *Planner) planDir(src, dst *Entry) error {
 
 	// Sync source to destination
 	for _, s := range src.Children() {
+		// Check for errors from the workers
+		if p.quit != nil {
+			return p.quit
+		}
+
 		d := p.dst.Get(p.dkey(s))
 
 		// Eliminate the possibility of a mismatch
@@ -174,7 +207,12 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		case CopyAudio:
 			return p.op.CopyFile(src.AbsPath(), path)
 		case TranscodeAudio:
-			return p.op.Transcode(src.AbsPath(), path, sa)
+			p.pool.SendWorkAsync(func() {
+				p.mut.RLock()
+				p.errs <- p.op.Transcode(src.AbsPath(), path, sa)
+				p.mut.RUnlock()
+			}, nil)
+			return nil
 		case UpdateAudio:
 			return p.op.Update(src.AbsPath(), path, da)
 		case IgnoreAudio:
