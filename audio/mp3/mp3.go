@@ -114,7 +114,10 @@ func ReadMetadata(file string) (*Metadata, error) {
 		dur += frame.Duration()
 		bytes += int64(frame.Size())
 	}
-	kbps := (bytes * 8) / int64(dur*1000/time.Second)
+	var kbps int64
+	if dur != 0 {
+		kbps = (bytes * 8) / int64(dur*1000/time.Second)
+	}
 	Stats.ReadMetadataBrDu.Add(float64(time.Since(s2)))
 
 	return &Metadata{
