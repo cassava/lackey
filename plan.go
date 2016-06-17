@@ -5,9 +5,11 @@
 package lackey
 
 import (
+	"errors"
 	"path/filepath"
 
 	"github.com/goulash/audio"
+	"github.com/goulash/osutil"
 )
 
 type Operator interface {
@@ -19,59 +21,113 @@ type Operator interface {
 	// Feedback
 	Ok(dst string) error
 	Ignore(dst string) error
-	Error(format string, xs ...interface{}) error
+	Error(err error) error
+	Warn(err error) error
 
 	// Operations
-	CreateDir(dst string) error
 	RemoveDir(dst string) error
+	CreateDir(dst string) error
 
-	Copy(src, dst string) error
+	RemoveFile(dst string) error
+	CopyFile(src, dst string) error
 	Transcode(src, dst string, md audio.Metadata) error
 	Update(src, dst string, md audio.Metadata) error
-	Remove(dst string) error
 }
 
-func Plan(src, dst *Entry, op Operator) error {
-	if src.IsDir() {
-		return planDir(src, dst, op)
+type Planner struct {
+	IgnoreData   bool
+	DeleteBefore bool
+	TranscodeAll bool
+
+	op  Operator
+	src *Database
+	dst *Database
+}
+
+func NewPlanner(src, dst *Database, op Operator) *Planner {
+	return &Planner{
+		op:  op,
+		src: src,
+		dst: dst,
 	}
 }
 
-type planner struct {
-	src *Entry
-	dst *Entry
-}
-
-func (p *planner) path(src *Entry) string {
-	return filepath.Join(p.dst.RootPath(), src.RelPath())
-}
-
-func (p *planner) pathWithExt(src *Entry, ext string) string {
-	path := filepath.Join(p.dst.RootPath(), src.RelPath())
-	if ext == "" {
-		return path
+func (p *Planner) Plan() error {
+	if p.src == nil || p.dst == nil || p.op == nil {
+		return errors.New("planner contains nil fields")
 	}
-	_, oxt := str.FilenameExt()
-	return path[:len(path)-len(oxt)] + ext // this might not work
-}
-
-func (p *planner) planDir(src, dst *Entry, op Operator) error {
-
-}
-
-func (p *planner) planFile(src, dst *Entry, op Operator) error {
-	if src == nil {
-		panic("source cannot be nil")
+	src := p.src.Root()
+	if !src.IsDir() {
+		return errors.New("src must be a directory")
 	}
+	dst := p.dst.Root()
+	if !dst.IsDir() {
+		return errors.New("dst must be a directory")
+	}
+	return p.planDir(src, dst)
+}
 
-	if dst != nil && (dst.IsDir() || src.IsMusic() != dst.IsMusic()) {
-		err := op.RemoveDir(dst.AbsPath())
+func (p *Planner) planDir(src, dst *Entry) error {
+	// We know that both src and dst are directories, or dst doesn't exist.
+	if dst != nil && p.DeleteBefore {
+		// Delete extra files on destination first, if dst exists.
+		expect := make(map[string]bool)
+		for _, e := range src.Children() {
+			expect[p.dkey(e)] = true
+		}
+
+		for _, e := range dst.Children() {
+			if !expect[e.Key()] {
+				p.remove(e)
+			}
+		}
+	} else {
+		// Create the directory if it doesn't exist.
+		path := p.dpath(src.Key())
+		ex, err := osutil.DirExists(path)
 		if err != nil {
 			return err
 		}
-		dst = nil
+		if !ex {
+			err := p.op.CreateDir(p.dpath(src.Key()))
+			if err != nil {
+				return err
+			}
+		}
 	}
 
+	// Sync source to destination
+	for _, s := range src.Children() {
+		d := p.dst.Get(p.dkey(s))
+
+		// Eliminate the possibility of a mismatch
+		if d != nil && (s.IsDir() != d.IsDir() || s.IsMusic() != d.IsMusic()) {
+			err := p.remove(dst)
+			if err != nil {
+				return err
+			}
+			dst = nil
+		}
+
+		var err error
+		if s.IsDir() {
+			err = p.planDir(s, d)
+		} else {
+			err = p.planFile(s, d)
+		}
+		if err != nil {
+			err = p.op.Warn(err)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// planFile synchronizes src to dst, which may be nil.
+func (p *Planner) planFile(src, dst *Entry) error {
 	if src.IsMusic() {
 		if src.IsMusic() {
 			var mdIn, mdOut audio.Metadata
@@ -88,96 +144,55 @@ func (p *planner) planFile(src, dst *Entry, op Operator) error {
 				}
 			}
 
-			ext := op.ShouldTranscode(mdIn, mdOut)
+			ext := p.op.ShouldTranscode(mdIn, mdOut)
 			if ext != "" {
-				return op.Transcode(src.AbsPath(), p.pathWithExt(src, ext), md)
+				return p.op.Transcode(src.AbsPath(), p.pathWithExt(src, ext), mdIn)
 			}
 		}
 	}
-	return op.Copy(src.AbsPath(), p.path(src))
+	return p.op.CopyFile(src.AbsPath(), p.dpath(src.RelPath()))
 }
 
-/*
-func planSync(src, dst *Entry, p Operator) error {
-		switch {
-		case src.IsDir():
-			if err := p.CreateDir(); err != nil {
-				return err
-			}
-			src.
-		case src.IsMusic():
-			if
-			fallthrough
-		default:
-			return p.Copy(src, dst)
-		}
+// dpath returns the absolute destination path, given the key.
+func (p *Planner) dpath(key string) string {
+	return filepath.Join(p.dst.Path(), key)
 }
 
-func planFile(
-
-
-	if src == nil && dst == nil {
-		panic("both source and destination nil")
-	} else if src == nil {
-		// Source file is missing, so delete the destination entirely
-		if dst.IsDir() {
-			return p.RemoveDir()
-		}
-		return p.Remove(dst)
-	} else if dst == nil {
-		// Destination file is missing, so sync everything over
-		return planSync(src, dst, p)
+// dkey returns the destination key, which also takes into account whether the
+// file should be transcoded or not.
+func (p *Planner) dkey(src *Entry) string {
+	if !src.IsMusic() {
+		return src.Key()
 	}
 
-	if src.Key() != dst.Key() {
-		panic("key must be identical")
+	md, ok := src.Data().(audio.Metadata)
+	if !ok {
+		panic("expecting music to contain metadata")
 	}
-	if src.IsDir() != dst.IsDir() || src.IsMusic() != dst.IsMusic() {
-		// File type mismatch, so delete destination and then sync.
-		var err error
-		if dst.IsDir() {
-			err = p.RemoveDir(dst.AbsPath())
-		} else {
-			err = p.Remove(dst.AbsPath())
-		}
-		if err != nil {
-			return err
-		}
-		return planSync(src, dst, p)
-	}
-
-	if src.IsMusic() {
-
-	}
+	ext := p.op.ShouldTranscode(md, nil)
+	key := src.Key()
+	_, oxt := src.FilenameExt()
+	return key[:len(key)-len(oxt)] + ext // this might not work
 }
 
-func (p *Planner) plan(src, dst *Entry) *Op {
-
-	var f Flag
-	if src.FileInfo().ModTime() > dst.FileInfo().ModTime() {
-		f |= Time
+func (p *Planner) pathWithExt(src *Entry, ext string) string {
+	path := filepath.Join(p.dst.Path(), src.RelPath())
+	if ext == "" {
+		return path
 	}
-	if src.IsMusic() {
-		sm := src.Data.(Metadata)
-		dm := dst.Data.(Metadata)
-		if !audio.MetadataEquals(sm, dm) {
-			f |= Metadata
-		}
-		if qf(sm, dm) {
-			f |= Quality
-		}
+	_, oxt := src.FilenameExt()
+	return path[:len(path)-len(oxt)] + ext // this might not work
+}
+
+func (p *Planner) remove(dst *Entry) error {
+	var err error
+	if dst.IsDir() {
+		err = p.op.RemoveDir(dst.AbsPath())
 	} else {
-		if src.Size() != dst.Size() {
-			f |= Size
-		}
+		err = p.op.RemoveFile(dst.AbsPath())
 	}
-
-	if f == Unknown {
-		return Equal, nil
-	} else {
-		return Unequeal | f, nil
+	if err != nil {
+		return p.op.Warn(err)
 	}
-
+	return nil
 }
-
-*/
