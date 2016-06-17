@@ -15,6 +15,7 @@ var (
 	syncDeleteBefore     bool
 	syncDryRun           bool
 	syncOnlyMusic        bool
+	syncForceTranscode   bool
 	syncBitrateThreshold int
 	syncTargetQuality    int
 )
@@ -22,6 +23,7 @@ var (
 func init() {
 	MainCmd.AddCommand(syncCmd)
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
+	syncCmd.Flags().BoolVarP(&syncForceTranscode, "force", "f", false, "force transcode for all audio")
 	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target mp3 quality")
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
@@ -47,27 +49,16 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
-		var op lackey.Operator
-		if syncDryRun {
-			op = &lackey.DryRunner{
-				Color:            col,
-				BitrateThreshold: syncBitrateThreshold,
-				TargetQuality:    syncTargetQuality,
-				Verbose:          Conf.Verbose,
-				Strip:            true,
-				SrcPrefix:        sdb.Path() + "/",
-				DstPrefix:        ddb.Path() + "/",
-			}
-		} else {
-			op = &lackey.WetRunner{
-				Color:            col,
-				BitrateThreshold: syncBitrateThreshold,
-				TargetQuality:    syncTargetQuality,
-				Verbose:          Conf.Verbose,
-				Strip:            true,
-				SrcPrefix:        sdb.Path() + "/",
-				DstPrefix:        ddb.Path() + "/",
-			}
+		op := &lackey.Runner{
+			Color:            col,
+			BitrateThreshold: syncBitrateThreshold,
+			TargetQuality:    syncTargetQuality,
+			ForceTranscode:   syncForceTranscode,
+			DryRun:           syncDryRun,
+			Verbose:          Conf.Verbose,
+			Strip:            true,
+			SrcPrefix:        sdb.Path() + "/",
+			DstPrefix:        ddb.Path() + "/",
 		}
 		p := lackey.NewPlanner(sdb, ddb, op)
 		p.IgnoreData = syncOnlyMusic

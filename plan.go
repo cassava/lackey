@@ -183,6 +183,9 @@ func (p *Planner) planFile(src, dst *Entry) error {
 			panic("unknown audio operation")
 		}
 	} else if !p.IgnoreData {
+		if dst != nil && dst.FileInfo().ModTime().After(src.FileInfo().ModTime()) {
+			return p.op.Ok(path)
+		}
 		return p.op.CopyFile(src.AbsPath(), path)
 	}
 	return p.op.Ignore(path)
