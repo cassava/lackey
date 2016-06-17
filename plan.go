@@ -6,6 +6,7 @@ package lackey
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -38,6 +39,11 @@ func entryAudio(e *Entry) Audio {
 	type aud struct {
 		audio.Metadata
 		os.FileInfo
+	}
+	md, ok := e.Data().(audio.Metadata)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", e.Data())
+		return nil
 	}
 	return &aud{
 		Metadata: e.Data().(audio.Metadata),
