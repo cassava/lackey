@@ -20,7 +20,6 @@ var Conf struct {
 	Color       string
 
 	BitrateThreshold int
-	TargetBitrate    int
 	TargetQuality    int
 }
 

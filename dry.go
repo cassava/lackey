@@ -18,6 +18,8 @@ type DryRunner struct {
 	BitrateThreshold int
 	TargetQuality    int
 
+	Verbose bool
+
 	Strip     bool
 	SrcPrefix string
 	DstPrefix string
@@ -51,7 +53,10 @@ func (o *DryRunner) Ok(dst string) error {
 	if o.Strip {
 		dst = strings.TrimPrefix(dst, o.DstPrefix)
 	}
-	o.Color.Printf("@{g.}ok:@|@.       %s\n", dst)
+
+	if o.Verbose {
+		o.Color.Printf("@{g.}ok:@|@.       %s\n", dst)
+	}
 	return nil
 }
 
@@ -107,7 +112,6 @@ func (o *DryRunner) CopyFile(src string, dst string) error {
 
 func (o *DryRunner) Transcode(src string, dst string, md Audio) error {
 	if o.Strip {
-		src = strings.TrimPrefix(src, o.SrcPrefix)
 		dst = strings.TrimPrefix(dst, o.DstPrefix)
 	}
 	o.Color.Printf("@gencode:@|   %s\n", dst)

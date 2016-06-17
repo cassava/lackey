@@ -167,6 +167,7 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		sa := entryAudio(src)
 		da := entryAudio(dst)
 
+		path = p.dpath(p.dkey(src))
 		switch p.op.Which(sa, da) {
 		case SkipAudio:
 			return p.op.Ok(path)

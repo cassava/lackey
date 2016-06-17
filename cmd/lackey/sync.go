@@ -53,12 +53,21 @@ var syncCmd = &cobra.Command{
 				Color:            col,
 				BitrateThreshold: syncBitrateThreshold,
 				TargetQuality:    syncTargetQuality,
+				Verbose:          Conf.Verbose,
 				Strip:            true,
 				SrcPrefix:        sdb.Path() + "/",
 				DstPrefix:        ddb.Path() + "/",
 			}
 		} else {
-			panic("not implemented")
+			op = &lackey.WetRunner{
+				Color:            col,
+				BitrateThreshold: syncBitrateThreshold,
+				TargetQuality:    syncTargetQuality,
+				Verbose:          Conf.Verbose,
+				Strip:            true,
+				SrcPrefix:        sdb.Path() + "/",
+				DstPrefix:        ddb.Path() + "/",
+			}
 		}
 		p := lackey.NewPlanner(sdb, ddb, op)
 		p.IgnoreData = syncOnlyMusic

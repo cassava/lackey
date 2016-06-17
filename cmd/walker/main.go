@@ -13,6 +13,7 @@ import (
 	"github.com/goulash/errs"
 	"github.com/goulash/osutil"
 	"github.com/spf13/cobra"
+	flag "github.com/spf13/pflag"
 )
 
 // col lets us print in colors.
