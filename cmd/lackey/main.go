@@ -18,6 +18,10 @@ var Conf struct {
 	LibraryPath string
 	Verbose     bool
 	Color       string
+
+	BitrateThreshold int
+	TargetBitrate    int
+	TargetQuality    int
 }
 
 // col lets us print in colors.

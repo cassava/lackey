@@ -111,7 +111,7 @@ func (e *Entry) Filename() string {
 func (e *Entry) FilenameExt() (base string, ext string) {
 	name := filepath.Base(e.path)
 	ext = filepath.Ext(e.path)
-	base = name[:len(base)-len(ext)]
+	base = name[:len(name)-len(ext)]
 	return base, ext
 }
 

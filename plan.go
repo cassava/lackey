@@ -6,17 +6,51 @@ package lackey
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 
 	"github.com/goulash/audio"
 	"github.com/goulash/osutil"
 )
 
+type AudioOperation int
+
+const (
+	SkipAudio AudioOperation = iota
+	IgnoreAudio
+	TranscodeAudio
+	UpdateAudio
+	CopyAudio
+)
+
+type Audio interface {
+	audio.Metadata
+	os.FileInfo
+}
+
+func entryAudio(e *Entry) Audio {
+	if e == nil {
+		return nil
+	}
+	type aud struct {
+		audio.Metadata
+		os.FileInfo
+	}
+	return &aud{
+		Metadata: e.Data().(audio.Metadata),
+		FileInfo: e.FileInfo(),
+	}
+}
+
 type Operator interface {
-	// ShouldTranscode takes the source and destination (possibly nil)
-	// metadata and returns an extension if the file described by src
-	// should be transcoded, and "" otherwise.
-	ShouldTranscode(src, dst audio.Metadata) string
+	// WhichExt takes the source metadata and returns the
+	// expected destination extension of the file, such as ".mp3".
+	// If "" is returned, the extension remains unchanged.
+	WhichExt(src Audio) string
+
+	// Which returns an audio operation that should be
+	// performed, based on src and dst (possibly nil).
+	Which(src, dst Audio) AudioOperation
 
 	// Feedback
 	Ok(dst string) error
@@ -30,8 +64,8 @@ type Operator interface {
 
 	RemoveFile(dst string) error
 	CopyFile(src, dst string) error
-	Transcode(src, dst string, md audio.Metadata) error
-	Update(src, dst string, md audio.Metadata) error
+	Transcode(src, dst string, md Audio) error
+	Update(src, dst string, md Audio) error
 }
 
 type Planner struct {
@@ -128,29 +162,29 @@ func (p *Planner) planDir(src, dst *Entry) error {
 
 // planFile synchronizes src to dst, which may be nil.
 func (p *Planner) planFile(src, dst *Entry) error {
+	path := p.dpath(src.RelPath())
 	if src.IsMusic() {
-		if src.IsMusic() {
-			var mdIn, mdOut audio.Metadata
+		sa := entryAudio(src)
+		da := entryAudio(dst)
 
-			mdIn, ok := src.Data().(audio.Metadata)
-			if !ok {
-				panic("filetype is audio but there is no metadata")
-			}
-
-			if dst != nil {
-				mdOut, ok = dst.Data().(audio.Metadata)
-				if !ok {
-					panic("filetype is audio but there is no metadata")
-				}
-			}
-
-			ext := p.op.ShouldTranscode(mdIn, mdOut)
-			if ext != "" {
-				return p.op.Transcode(src.AbsPath(), p.pathWithExt(src, ext), mdIn)
-			}
+		switch p.op.Which(sa, da) {
+		case SkipAudio:
+			return p.op.Ok(path)
+		case CopyAudio:
+			return p.op.CopyFile(src.AbsPath(), path)
+		case TranscodeAudio:
+			return p.op.Transcode(src.AbsPath(), path, sa)
+		case UpdateAudio:
+			return p.op.Update(src.AbsPath(), path, da)
+		case IgnoreAudio:
+			return p.op.Ignore(path)
+		default:
+			panic("unknown audio operation")
 		}
+	} else if !p.IgnoreData {
+		return p.op.CopyFile(src.AbsPath(), path)
 	}
-	return p.op.CopyFile(src.AbsPath(), p.dpath(src.RelPath()))
+	return p.op.Ignore(path)
 }
 
 // dpath returns the absolute destination path, given the key.
@@ -165,11 +199,7 @@ func (p *Planner) dkey(src *Entry) string {
 		return src.Key()
 	}
 
-	md, ok := src.Data().(audio.Metadata)
-	if !ok {
-		panic("expecting music to contain metadata")
-	}
-	ext := p.op.ShouldTranscode(md, nil)
+	ext := p.op.WhichExt(entryAudio(src))
 	key := src.Key()
 	_, oxt := src.FilenameExt()
 	return key[:len(key)-len(oxt)] + ext // this might not work

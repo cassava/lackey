@@ -12,16 +12,20 @@ import (
 )
 
 var (
-	syncDeleteBefore bool
-	syncDryRun       bool
-	syncOnlyMusic    bool
+	syncDeleteBefore     bool
+	syncDryRun           bool
+	syncOnlyMusic        bool
+	syncBitrateThreshold int
+	syncTargetQuality    int
 )
 
 func init() {
 	MainCmd.AddCommand(syncCmd)
-	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", "just show what will be done, without doing it")
-	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", "delete extra files in destination")
-	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", "only synchronize music")
+	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
+	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target mp3 quality")
+	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
+	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
+	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
 }
 
 var syncCmd = &cobra.Command{
@@ -46,10 +50,12 @@ var syncCmd = &cobra.Command{
 		var op lackey.Operator
 		if syncDryRun {
 			op = &lackey.DryRunner{
-				Color:     col,
-				Strip:     true,
-				SrcPrefix: sdb.Path(),
-				DstPrefix: ddb.Path(),
+				Color:            col,
+				BitrateThreshold: syncBitrateThreshold,
+				TargetQuality:    syncTargetQuality,
+				Strip:            true,
+				SrcPrefix:        sdb.Path() + "/",
+				DstPrefix:        ddb.Path() + "/",
 			}
 		} else {
 			panic("not implemented")
