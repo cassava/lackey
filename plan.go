@@ -42,11 +42,11 @@ func entryAudio(e *Entry) Audio {
 	}
 	md, ok := e.Data().(audio.Metadata)
 	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", e.Data())
+		fmt.Fprintf(os.Stderr, "Error: %s: %v\n", e.Key(), e.Data())
 		return nil
 	}
 	return &aud{
-		Metadata: e.Data().(audio.Metadata),
+		Metadata: md,
 		FileInfo: e.FileInfo(),
 	}
 }
@@ -89,7 +89,7 @@ type Planner struct {
 
 	pool *tunny.WorkPool
 	errs chan error
-	mut  sync.RWMutex
+	wg   sync.WaitGroup
 	quit error
 }
 
@@ -104,6 +104,8 @@ func NewPlanner(src, dst *Database, op Operator) *Planner {
 }
 
 func (p *Planner) Plan() error {
+	var err error
+
 	if p.src == nil || p.dst == nil || p.op == nil {
 		return errors.New("planner contains nil fields")
 	}
@@ -116,10 +118,13 @@ func (p *Planner) Plan() error {
 		return errors.New("dst must be a directory")
 	}
 
-	p.errs = make(chan error, 1)
-	p.pool = tunny.CreatePoolGeneric(p.Concurrent)
+	p.pool, err = tunny.CreatePoolGeneric(p.Concurrent).Open()
+	if err != nil {
+		return err
+	}
 	defer p.pool.Close()
 
+	p.errs = make(chan error, 1)
 	go func() {
 		for e := range p.errs {
 			err := p.op.Warn(e)
@@ -130,8 +135,8 @@ func (p *Planner) Plan() error {
 		}
 	}()
 
-	err := p.planDir(src, dst)
-	p.mut.Lock()
+	err = p.planDir(src, dst)
+	p.wg.Wait()
 	return err
 }
 
@@ -213,10 +218,13 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		case CopyAudio:
 			return p.op.CopyFile(src.AbsPath(), path)
 		case TranscodeAudio:
+			p.wg.Add(1)
 			p.pool.SendWorkAsync(func() {
-				p.mut.RLock()
-				p.errs <- p.op.Transcode(src.AbsPath(), path, sa)
-				p.mut.RUnlock()
+				err := p.op.Transcode(src.AbsPath(), path, sa)
+				if err != nil {
+					p.errs <- err
+				}
+				p.wg.Done()
 			}, nil)
 			return nil
 		case UpdateAudio:
