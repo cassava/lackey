@@ -6,6 +6,7 @@ package lackey
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -36,8 +37,9 @@ type Entry struct {
 
 	path  string // path relative to database root
 	fi    os.FileInfo
-	typ   EntryType   // entry type (dir|file|music)
-	bytes int64       // cumulative size of entry
+	typ   EntryType // entry type (dir|file|music)
+	bytes int64     // cumulative size of entry
+	codec audio.Codec
 	data  interface{} // any extra data stored with this entry
 }
 
@@ -47,6 +49,10 @@ func (e *Entry) Key() string {
 
 func (e *Entry) FileInfo() os.FileInfo {
 	return e.fi
+}
+
+func (e *Entry) IsExists() bool {
+	return e != nil && e.fi != nil
 }
 
 func (e *Entry) IsDir() bool {
@@ -65,8 +71,38 @@ func (e *Entry) Children() []*Entry {
 	return e.children
 }
 
+// Care should be taken with when Data is called, as the first call may involve
+// reading the metadata of the associated file.
 func (e *Entry) Data() interface{} {
+	if e.data != nil {
+		return e.data
+	}
+
+	// Get this data in a lazy fashion
+	if e.typ == MusicEntry {
+		abs := filepath.Join(e.db.Path(), e.path)
+		m, err := audio.ReadMetadata(abs)
+		if err != nil {
+			e.data = err
+			return e.data
+		}
+		e.data = m
+	}
+
 	return e.data
+}
+
+func (e *Entry) Encoding() audio.Codec {
+	return e.codec
+}
+
+func (e *Entry) Metadata() audio.Metadata {
+	md, ok := e.Data().(audio.Metadata)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Error: %s: %v\n", e.Key(), e.Data())
+		return nil
+	}
+	return md
 }
 
 func (e *Entry) Walk(fn func(e *Entry) error) error {
@@ -204,19 +240,14 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 	}
 
 	e.bytes = fi.Size()
-	if c, err := audio.Identify(abs); c == audio.Unknown {
+	e.codec, err = audio.Identify(abs)
+	if e.codec == audio.Unknown {
 		e.typ = FileEntry
 		e.data = err
-		return
+	} else {
+		e.typ = MusicEntry
+		// We don't set e.data now, rather when Data is called.
 	}
-
-	e.typ = MusicEntry
-	m, err := audio.ReadMetadata(abs)
-	if err != nil {
-		e.data = err
-		return
-	}
-	e.data = m
 }
 
 func ReadLibrary(path string) (*Database, error) {

@@ -30,38 +30,56 @@ type Runner struct {
 	DstPrefix string
 }
 
-func (o *Runner) WhichExt(src Audio) string {
+func (o *Runner) WhichExt(_ Audio) string {
+	// At the moment, we assume that we always want MP3 output
 	return ".mp3"
 }
 
+// canEncode returns true if this runner can encode the codec.
+func (o *Runner) canEncode(c audio.Codec) bool {
+	return c == audio.FLAC || c == audio.MP3
+}
+
+func (o *Runner) whichMP3(src, dst Audio) AudioOperation {
+	if !dst.IsExists() {
+		sm := src.Metadata()
+		if sm.EncodingBitrate() > o.BitrateThreshold {
+			return TranscodeAudio
+		}
+		return CopyAudio
+	}
+	sfi, dfi := src.FileInfo(), dst.FileInfo()
+	if sfi.ModTime().After(dfi.ModTime()) {
+		return UpdateAudio
+	}
+	return SkipAudio
+}
+
+func (o *Runner) which(src, dst Audio) AudioOperation {
+	if !dst.IsExists() {
+		return TranscodeAudio
+	}
+	sfi, dfi := src.FileInfo(), dst.FileInfo()
+	if sfi.ModTime().After(dfi.ModTime()) {
+		return UpdateAudio
+	}
+	return SkipAudio
+}
+
 func (o *Runner) Which(src, dst Audio) AudioOperation {
-	switch src.Encoding() {
-	case audio.FLAC:
-		if dst == nil || o.ForceTranscode {
-			return TranscodeAudio
-		}
-		if src.ModTime().After(dst.ModTime()) {
-			return UpdateAudio
-		}
-		return SkipAudio
-	case audio.MP3:
-		if o.ForceTranscode {
-			return TranscodeAudio
-		}
-
-		if dst == nil {
-			if src.EncodingBitrate() > o.BitrateThreshold {
-				return TranscodeAudio
-			}
-			return CopyAudio
-		}
-
-		if src.ModTime().After(dst.ModTime()) {
-			return UpdateAudio
-		}
-		return SkipAudio
-	default:
+	// Find out when we can skip work.
+	if !o.canEncode(src.Encoding()) {
 		return IgnoreAudio
+	}
+	if o.ForceTranscode {
+		return TranscodeAudio
+	}
+
+	switch src.Encoding() {
+	case audio.MP3:
+		return o.whichMP3(src, dst)
+	default:
+		return o.which(src, dst)
 	}
 }
 

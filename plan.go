@@ -6,7 +6,6 @@ package lackey
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,27 +27,10 @@ const (
 )
 
 type Audio interface {
-	audio.Metadata
-	os.FileInfo
-}
-
-func entryAudio(e *Entry) Audio {
-	if e == nil {
-		return nil
-	}
-	type aud struct {
-		audio.Metadata
-		os.FileInfo
-	}
-	md, ok := e.Data().(audio.Metadata)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "Error: %s: %v\n", e.Key(), e.Data())
-		return nil
-	}
-	return &aud{
-		Metadata: md,
-		FileInfo: e.FileInfo(),
-	}
+	IsExists() bool
+	FileInfo() os.FileInfo
+	Encoding() audio.Codec
+	Metadata() audio.Metadata
 }
 
 type Operator interface {
@@ -208,11 +190,8 @@ func (p *Planner) planDir(src, dst *Entry) error {
 func (p *Planner) planFile(src, dst *Entry) error {
 	path := p.dpath(src.RelPath())
 	if src.IsMusic() {
-		sa := entryAudio(src)
-		da := entryAudio(dst)
-
 		path = p.dpath(p.dkey(src))
-		switch p.op.Which(sa, da) {
+		switch p.op.Which(src, dst) {
 		case SkipAudio:
 			return p.op.Ok(path)
 		case CopyAudio:
@@ -220,7 +199,7 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		case TranscodeAudio:
 			p.wg.Add(1)
 			p.pool.SendWorkAsync(func() {
-				err := p.op.Transcode(src.AbsPath(), path, sa)
+				err := p.op.Transcode(src.AbsPath(), path, src)
 				if err != nil {
 					p.errs <- err
 				}
@@ -228,7 +207,7 @@ func (p *Planner) planFile(src, dst *Entry) error {
 			}, nil)
 			return nil
 		case UpdateAudio:
-			return p.op.Update(src.AbsPath(), path, da)
+			return p.op.Update(src.AbsPath(), path, dst)
 		case IgnoreAudio:
 			return p.op.Ignore(path)
 		default:
@@ -255,7 +234,7 @@ func (p *Planner) dkey(src *Entry) string {
 		return src.Key()
 	}
 
-	ext := p.op.WhichExt(entryAudio(src))
+	ext := p.op.WhichExt(src)
 	key := src.Key()
 	_, oxt := src.FilenameExt()
 	return key[:len(key)-len(oxt)] + ext // this might not work
@@ -271,6 +250,10 @@ func (p *Planner) pathWithExt(src *Entry, ext string) string {
 }
 
 func (p *Planner) remove(dst *Entry) error {
+	//debug
+	if dst.parent == nil {
+		panic("why?")
+	}
 	var err error
 	if dst.IsDir() {
 		err = p.op.RemoveDir(dst.AbsPath())
