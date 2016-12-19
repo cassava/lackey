@@ -41,13 +41,13 @@ var syncCmd = &cobra.Command{
 			return errors.New("missing destination library destination argument")
 		}
 		col.Println("@.Reading source library (this might take a while)...")
-		sdb, err := lackey.ReadLibrary(Conf.LibraryPath)
+		sdb, err := Conf.ReadLibrary(Conf.LibraryPath)
 		if err != nil {
 			return err
 		}
 
 		col.Println("@.Reading destination library (this might take a while)...")
-		ddb, err := lackey.ReadLibrary(args[0])
+		ddb, err := Conf.ReadLibrary(args[0])
 		if err != nil {
 			return err
 		}

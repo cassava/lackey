@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/facebookgo/symwalk"
 	"github.com/goulash/audio"
 
 	_ "github.com/cassava/lackey/audio/mp3"
@@ -171,6 +172,11 @@ type Database struct {
 	path    string
 	root    *Entry
 	entries map[string]*Entry
+
+	// Options
+	ignoreHidden   bool
+	followSymlinks bool
+	walker         func(string, filepath.WalkFunc) error
 }
 
 func (db *Database) Path() string {
@@ -216,8 +222,13 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 
 	if fi.IsDir() {
 		e.typ = DirEntry
-		filepath.Walk(abs, func(path string, fi os.FileInfo, err error) error {
+		e.db.walker(abs, func(path string, fi os.FileInfo, err error) error {
 			if path == abs {
+				return nil
+			}
+
+			// Ignore hidden files if requested
+			if e.db.ignoreHidden && filepath.HasPrefix(filepath.Base(path), ".") {
 				return nil
 			}
 
@@ -250,12 +261,16 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 	}
 }
 
-func ReadLibrary(path string) (*Database, error) {
+type LibraryReader struct {
+	FollowSymlinks bool
+	IgnoreHidden   bool
+}
+
+func (r LibraryReader) ReadLibrary(path string) (*Database, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-
 	fi, err := os.Stat(path)
 	if err != nil {
 		return nil, err
@@ -265,12 +280,30 @@ func ReadLibrary(path string) (*Database, error) {
 	}
 
 	db := &Database{
-		path:    abs,
-		entries: make(map[string]*Entry),
+		path:           abs,
+		entries:        make(map[string]*Entry),
+		followSymlinks: r.FollowSymlinks,
+		ignoreHidden:   r.IgnoreHidden,
+		walker:         filepath.Walk,
+	}
+	if r.FollowSymlinks {
+		db.walker = symwalk.Walk
 	}
 	db.root = &Entry{db: db}
 	db.root.init(".", fi, nil)
 	return db, nil
+}
+
+// ReadLibrary reads a library using the recommended options, namely:
+//
+//  FollowSymlinks = true
+//  IgnoreHidden   = true
+func ReadLibrary(path string) (*Database, error) {
+	r := LibraryReader{
+		FollowSymlinks: true,
+		IgnoreHidden:   true,
+	}
+	return r.ReadLibrary(path)
 }
 
 // }}}

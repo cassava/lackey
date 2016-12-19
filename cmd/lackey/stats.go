@@ -22,12 +22,14 @@ import (
 var (
 	showStandard bool
 	showRuntime  bool
+	showTree     bool
 )
 
 func init() {
 	MainCmd.AddCommand(statsCmd)
 	statsCmd.Flags().BoolVarP(&showStandard, "standard", "s", false, "show standard statistics")
 	statsCmd.Flags().BoolVarP(&showRuntime, "runtime", "r", false, "show runtime statistics")
+	statsCmd.Flags().BoolVarP(&showTree, "tree", "t", false, "show library tree")
 }
 
 var statsCmd = &cobra.Command{
@@ -41,11 +43,14 @@ var statsCmd = &cobra.Command{
   Other things of interest can be seen by passing the options.
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		db, err := lackey.ReadLibrary(Conf.LibraryPath)
+		db, err := Conf.ReadLibrary(Conf.LibraryPath)
 		if err != nil {
 			return err
 		}
 
+		if showTree {
+			printTree(db)
+		}
 		if showRuntime {
 			runtimeStats()
 		}
@@ -55,6 +60,31 @@ var statsCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+func printTree(db *lackey.Database) {
+	e := db.Root()
+	col.Println("Tree:")
+	printEntry(e, 0)
+	col.Println()
+}
+
+func printEntry(e *lackey.Entry, level int) {
+	prefix := strings.Repeat("  ", level)
+
+	switch e.Type() {
+	case lackey.DirEntry:
+		col.Printf("%s@!%s@|/\n", prefix, e.Filename())
+		for _, c := range e.Children() {
+			printEntry(c, level+1)
+		}
+	case lackey.FileEntry:
+		col.Printf("%s%s\n", prefix, e.Filename())
+	case lackey.MusicEntry:
+		col.Printf("%s@b%s@|\n", prefix, e.Filename())
+	default:
+		col.Printf("%s@r%s@|\n", prefix, e.Filename())
+	}
 }
 
 func standardStats(db *lackey.Database) {
@@ -109,6 +139,7 @@ func standardStats(db *lackey.Database) {
 	col.Printf("  @!Album artists@| %d\n", len(albumartists))
 	col.Printf("  @!Genres@|        %d\n", len(genres))
 	col.Printf("  @!Composers@|     %d\n", len(composers))
+	col.Println()
 }
 
 func runtimeStats() {
@@ -128,4 +159,5 @@ func runtimeStats() {
 	col.Printf("  mp3.@!ReadMetadataBrDu@|  %s\n", stats(&mp3.Stats.ReadMetadataBrDu))
 	col.Printf("  mp3.@!ToolMP3INFO@|       %s\n", stats(&mp3.Stats.ToolMP3INFO))
 	col.Printf("  mp3.@!ToolEXIFTOOL@|      %s\n", stats(&mp3.Stats.ToolEXIFTOOL))
+	col.Println()
 }

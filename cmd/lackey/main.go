@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cassava/lackey"
 	"github.com/goulash/color"
 	"github.com/spf13/cobra"
 )
@@ -18,6 +19,8 @@ var Conf struct {
 	LibraryPath string
 	Verbose     bool
 	Color       string
+
+	lackey.LibraryReader
 
 	BitrateThreshold int
 	TargetQuality    int
@@ -72,6 +75,8 @@ func main() {
 	MainCmd.PersistentFlags().Var(col, "color", "when to use color (auto|never|always)")
 	MainCmd.PersistentFlags().BoolVarP(&Conf.Verbose, "verbose", "v", Conf.Verbose, "show minimal amount of information")
 	MainCmd.PersistentFlags().StringVarP(&Conf.LibraryPath, "library", "L", "", "path to primary library")
+	MainCmd.PersistentFlags().BoolVar(&Conf.LibraryReader.IgnoreHidden, "ignore-hidden", true, "ignore hidden files")
+	MainCmd.PersistentFlags().BoolVar(&Conf.LibraryReader.FollowSymlinks, "follow-symlinks", true, "do not follow symlinks")
 
 	err := MainCmd.Execute()
 	if err != nil {

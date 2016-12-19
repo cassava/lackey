@@ -41,7 +41,7 @@ var progInfo = programInfo{
 	Author:    "Ben Morgan",
 	Email:     "neembi@gmail.com",
 	Version:   "0.2",
-	Date:      "12 Dec 2016",
+	Date:      "19 December 2016",
 	Copyright: "2016",
 	Homepage:  "https://github.com/cassava/lackey",
 	License:   "MIT",

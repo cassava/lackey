@@ -16,6 +16,13 @@ import (
 	"github.com/goulash/osutil"
 )
 
+type ExecError struct {
+	Err    error
+	Output string
+}
+
+func (err *ExecError) Error() string { return err.Err.Error() }
+
 type Runner struct {
 	Color *color.Colorizer
 
@@ -103,11 +110,17 @@ func (o *Runner) Ignore(dst string) error {
 
 func (o *Runner) Error(err error) error {
 	o.Color.Fprintf(os.Stderr, "@rerror:@|    %s\n", err)
+	if e, ok := err.(*ExecError); ok {
+		o.Color.Fprintf(os.Stderr, "@routput:@|\n%s\n", e.Output)
+	}
 	return err
 }
 
 func (o *Runner) Warn(err error) error {
 	o.Color.Fprintf(os.Stderr, "@rwarning:@|  %s\n", err)
+	if e, ok := err.(*ExecError); ok {
+		o.Color.Fprintf(os.Stderr, "@routput:@|\n%s\n", e.Output)
+	}
 	return nil
 }
 
@@ -179,7 +192,14 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 	}
 
 	q := strconv.FormatInt(int64(o.TargetQuality), 10)
-	return exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).Run()
+	bs, err := exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).CombinedOutput()
+	if err != nil {
+		return &ExecError{
+			Err:    err,
+			Output: string(bs),
+		}
+	}
+	return nil
 }
 
 func (o *Runner) Update(src string, dst string, md Audio) error {
@@ -192,5 +212,10 @@ func (o *Runner) Update(src string, dst string, md Audio) error {
 		return nil
 	}
 
+	err := os.Remove(path)
+	if err != nil {
+		return err
+	}
+	o.Color.Printf(" -> ")
 	return o.Transcode(src, path, md)
 }
