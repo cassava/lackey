@@ -7,6 +7,7 @@ package main
 import (
 	"os"
 	"text/template"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -40,9 +41,9 @@ var progInfo = programInfo{
 	Name:      "lackey",
 	Author:    "Ben Morgan",
 	Email:     "neembi@gmail.com",
-	Version:   "0.3",
-	Date:      "12 January 2017",
-	Copyright: "2016",
+	Version:   "0.4",
+	Date:      "",
+	Copyright: "2016–2017",
 	Homepage:  "https://github.com/cassava/lackey",
 	License:   "MIT",
 }
@@ -53,6 +54,9 @@ var versionCmd = &cobra.Command{
 	Long:              "Show the official version number of lackey, as well as the release date.",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error { return nil },
 	Run: func(cmd *cobra.Command, args []string) {
+		if progInfo.Date == "" {
+			progInfo.Date = time.Now().Format("2 January 2006")
+		}
 		template.Must(template.New("version").Parse(versionTmpl)).Execute(os.Stdout, progInfo)
 	},
 }

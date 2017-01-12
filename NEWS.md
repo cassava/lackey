@@ -1,6 +1,9 @@
 Lackey Releases
 ================
 
+## Version 0.4 (in development)
+At the moment, only some refactoring.
+
 ## Version 0.3 (12 January 2017)
 This release changes the versioning scheme to use semantic versioning.
 It is also the first release where I start to pay more attention to
