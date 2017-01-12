@@ -36,6 +36,26 @@ func init() {
 var syncCmd = &cobra.Command{
 	Use:   "sync <destination>",
 	Short: "synchronize libraries",
+	Long: `Synchronize from a high-quality library to a lower-quality mirror.
+
+  The high-quality library is specified with the -L flag.
+  Making it an explicit parameter leads to making it a configuration option
+  later, and prevents costly mistakes as to which is source and which is
+  destination.
+
+  The relevant default options are as follows:
+  
+    - it will follow symlinks (--follow-symlinks=true)
+    - it will unconditionally convert non-MP3 music with the LAME encoder
+      with a quality setting of 4 (--quality=4). See the LAME encoder on
+      what the quality setting means. Lower is better.
+    - it will convert existing MP3s if they have a bitrate higher than 256kbps,
+      and copy them otherwise (--threshold=256)
+    - it will copy all data files that are not music
+    - it will delete all unexpected files in the destination (like rsync)
+    - it will use the number of cores as the number of workers to use
+      (e.g. --concurrent=4)
+`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
 			return errors.New("missing destination library destination argument")
