@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 )
 
@@ -55,8 +56,24 @@ var versionCmd = &cobra.Command{
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error { return nil },
 	Run: func(cmd *cobra.Command, args []string) {
 		if progInfo.Date == "" {
-			progInfo.Date = time.Now().Format("2 January 2006")
+			progInfo.Date = versionDate().Format("2 January 2006")
 		}
 		template.Must(template.New("version").Parse(versionTmpl)).Execute(os.Stdout, progInfo)
 	},
+}
+
+// versionDate returns the modified time of the executable or the
+// current time.
+func versionDate() time.Time {
+	fn, err := osext.Executable()
+	if err != nil {
+		return time.Now()
+	}
+
+	fi, err := os.Stat(fn)
+	if err != nil {
+		return time.Now()
+	}
+
+	return fi.ModTime()
 }
