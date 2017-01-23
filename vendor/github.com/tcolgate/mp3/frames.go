@@ -229,9 +229,6 @@ func (d *Decoder) Decode(v *Frame) (err error) {
 			skipped += 2
 		}
 	}
-	if skipped != 0 {
-		log.Printf("Skipped %v bytes\n", skipped)
-	}
 
 	crcLen := 0
 	if v.Header().Protection() {
