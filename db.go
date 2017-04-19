@@ -14,6 +14,7 @@ import (
 	"github.com/goulash/audio"
 
 	_ "github.com/cassava/lackey/audio/mp3"
+	"github.com/cassava/lackey/filetype"
 	_ "github.com/goulash/audio/flac"
 )
 
@@ -27,6 +28,7 @@ const (
 	DirEntry EntryType = 1 << iota
 	FileEntry
 	MusicEntry
+	IgnoreEntry
 
 	ErrorEntry EntryType = 0
 )
@@ -62,6 +64,10 @@ func (e *Entry) IsDir() bool {
 
 func (e *Entry) IsMusic() bool {
 	return e.typ == MusicEntry
+}
+
+func (e *Entry) IsIgnored() bool {
+	return e.typ == IgnoreEntry
 }
 
 func (e *Entry) Parent() *Entry {
@@ -253,7 +259,12 @@ func (e *Entry) init(path string, fi os.FileInfo, err error) {
 	e.bytes = fi.Size()
 	e.codec, err = audio.Identify(abs)
 	if e.codec == audio.Unknown {
-		e.typ = FileEntry
+		ft := filetype.Identify(abs)
+		if ft == filetype.Text || ft == filetype.Image {
+			e.typ = FileEntry
+		} else {
+			e.typ = IgnoreEntry
+		}
 		e.data = err
 	} else {
 		e.typ = MusicEntry

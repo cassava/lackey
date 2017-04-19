@@ -213,7 +213,7 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		default:
 			panic("unknown audio operation")
 		}
-	} else if !p.IgnoreData {
+	} else if !p.IgnoreData && !src.IsIgnored() {
 		if dst != nil && dst.FileInfo().ModTime().After(src.FileInfo().ModTime()) {
 			return p.op.Ok(path)
 		}
