@@ -44,7 +44,7 @@ func (o *Runner) WhichExt(_ Audio) string {
 
 // canEncode returns true if this runner can encode the codec.
 func (o *Runner) canEncode(c audio.Codec) bool {
-	return c == audio.FLAC || c == audio.MP3
+	return c == audio.FLAC || c == audio.MP3 || c == audio.M4A
 }
 
 func (o *Runner) whichMP3(src, dst Audio) AudioOperation {
