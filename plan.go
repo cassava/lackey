@@ -162,11 +162,11 @@ func (p *Planner) planDir(src, dst *Entry) error {
 
 		// Eliminate the possibility of a mismatch
 		if d != nil && (s.IsDir() != d.IsDir() || s.IsMusic() != d.IsMusic()) {
-			err := p.remove(dst)
+			err := p.remove(d)
 			if err != nil {
 				return err
 			}
-			dst = nil
+			d = nil
 		}
 
 		var err error
