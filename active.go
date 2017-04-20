@@ -192,7 +192,15 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 	}
 
 	q := strconv.FormatInt(int64(o.TargetQuality), 10)
-	bs, err := exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).CombinedOutput()
+	var bs []byte
+	var err error
+	if md.Encoding() == audio.MP3 {
+		// We are much more reliable using lame directly than over ffmpeg when downsampling
+		// MP3 files directly.
+		bs, err = exec.Command("lame", "--mp3input", "-h", "-V"+q, src, path).CombinedOutput()
+	} else {
+		bs, err = exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).CombinedOutput()
+	}
 	if err != nil {
 		return &ExecError{
 			Err:    err,
