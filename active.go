@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cassava/lackey/audio/mp3"
 	"github.com/goulash/audio"
 	"github.com/goulash/color"
 	"github.com/goulash/osutil"
@@ -198,6 +199,12 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 		// We are much more reliable using lame directly than over ffmpeg when downsampling
 		// MP3 files directly.
 		bs, err = exec.Command("lame", "--mp3input", "-h", "-V"+q, src, path).CombinedOutput()
+	} else if md.Encoding() == audio.FLAC {
+		// Because ffmpeg is having some bugs, we avoid using it when possible.
+		enc := mp3.NewEncoder()
+		enc.Quality = o.TargetQuality
+		dec := exec.Command("flac", "-c", "-d", src)
+		bs, err = enc.EncodeFromStdin(dec, path, md.Metadata())
 	} else {
 		bs, err = exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).CombinedOutput()
 	}
