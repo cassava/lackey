@@ -5,6 +5,7 @@
 package mp3
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -199,6 +200,74 @@ func WriteMetadata(file string, m audio.Metadata) error {
 }
 
 // }}}
+
+type Encoder struct {
+	Path    string
+	Quality int
+}
+
+func NewEncoder() *Encoder {
+	return &Encoder{
+		Path:    "lame",
+		Quality: 4,
+	}
+}
+
+// EncodeFromStdin takes a command that produces a decoded file on stdout, and
+// pipes that through an mp3 encoder. It tags the MP3 with audio metadata received.
+//
+// For example:
+//
+//	enc := mp3.Encoder{q}
+//  dec := exec.Command("flac", "-c", "-d", src)
+//  bs, err = enc.EncodeFromStdin(dec, path, md.Metadata())
+//
+func (e *Encoder) EncodeFromStdin(dec *exec.Cmd, path string, md audio.Metadata) ([]byte, error) {
+	slash := func(a, b int) string { return fmt.Sprintf("%d/%d", a, b) }
+	q := strconv.FormatInt(int64(e.Quality), 10)
+	enc := exec.Command(e.Path,
+		"-h", "-V"+q,
+		"--add-id3v2", "--pad-id3v2",
+		"--tt", md.Title(),
+		"--ta", md.Artist(),
+		"--tv", fmt.Sprintf("TPE2=%s", md.AlbumArtist()),
+		"--tl", md.Album(),
+		"--tn", slash(md.Track()),
+		"--ty", fmt.Sprintf("%d", md.Year()),
+		"--tv", fmt.Sprintf("TPOS=%s", slash(md.Disc())),
+		"--tg", md.Genre(),
+		"--tc", md.Comment(),
+		"--tv", fmt.Sprintf("TCOM=%s", md.Composer()),
+		"--tv", fmt.Sprintf("WCOP=%s", md.Copyright()),
+		"--tv", fmt.Sprintf("WXXX=%s", md.Website()),
+		"--tv", fmt.Sprintf("TENC=%s", e.Path),
+		"--tv", fmt.Sprintf("TSSE=%s", "-h -V"+q),
+		"--tv", fmt.Sprintf("TOFN=%s", md.OriginalFilename()),
+		// input, output
+		"-", path,
+	)
+	// Set up the pipe
+	var err error
+	enc.Stdin, err = dec.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	// Set up the combined output
+	var b bytes.Buffer
+	dec.Stderr = &b
+	enc.Stdout = &b
+	enc.Stderr = &b
+
+	// Run both commands
+	if err := enc.Start(); err != nil {
+		return b.Bytes(), err
+	}
+	if err := dec.Run(); err != nil {
+		return b.Bytes(), err
+	}
+	return b.Bytes(), enc.Wait()
+}
 
 // Metadata {{{
 
