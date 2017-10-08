@@ -5,7 +5,6 @@
 package lackey
 
 import (
-	"errors"
 	"os"
 	"os/exec"
 	"strconv"
@@ -24,11 +23,16 @@ type ExecError struct {
 
 func (err *ExecError) Error() string { return err.Err.Error() }
 
+type Encoder interface {
+	Ext() string
+	Encode(src, dst string, md Audio) error
+}
+
 type Runner struct {
 	Color *color.Colorizer
 
+	Encoder          Encoder
 	BitrateThreshold int
-	TargetQuality    int
 	ForceTranscode   bool
 
 	DryRun    bool
@@ -39,8 +43,8 @@ type Runner struct {
 }
 
 func (o *Runner) WhichExt(_ Audio) string {
-	// At the moment, we assume that we always want MP3 output
-	return ".mp3"
+	// At the moment, we always have the same kind of output
+	return o.Encoder.Ext()
 }
 
 // canEncode returns true if this runner can encode the codec.
@@ -184,37 +188,11 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 	}
 	o.Color.Printf("@gencode:@|   %s\n", dst)
 
-	if o.TargetQuality < 0 || 9 < o.TargetQuality {
-		return errors.New("VBR quality must be between 0 and 9")
-	}
-
 	if o.DryRun {
 		return nil
 	}
 
-	q := strconv.FormatInt(int64(o.TargetQuality), 10)
-	var bs []byte
-	var err error
-	if md.Encoding() == audio.MP3 {
-		// We are much more reliable using lame directly than over ffmpeg when downsampling
-		// MP3 files directly.
-		bs, err = exec.Command("lame", "--mp3input", "-h", "-V"+q, src, path).CombinedOutput()
-	} else if md.Encoding() == audio.FLAC {
-		// Because ffmpeg is having some bugs, we avoid using it when possible.
-		enc := mp3.NewEncoder()
-		enc.Quality = o.TargetQuality
-		dec := exec.Command("flac", "-c", "-d", src)
-		bs, err = enc.EncodeFromStdin(dec, path, md.Metadata())
-	} else {
-		bs, err = exec.Command("ffmpeg", "-i", src, "-qscale:a", q, path).CombinedOutput()
-	}
-	if err != nil {
-		return &ExecError{
-			Err:    err,
-			Output: string(bs),
-		}
-	}
-	return nil
+	return o.Encoder.Encode(src, path, md)
 }
 
 func (o *Runner) Update(src string, dst string, md Audio) error {
@@ -233,4 +211,54 @@ func (o *Runner) Update(src string, dst string, md Audio) error {
 	}
 	o.Color.Printf(" -> ")
 	return o.Transcode(src, path, md)
+}
+
+type MP3Encoder struct {
+	TargetQuality int
+}
+
+func (e *MP3Encoder) Ext() string { return ".mp3" }
+
+func (e *MP3Encoder) Encode(src, dst string, md Audio) error {
+	q := strconv.FormatInt(int64(e.TargetQuality), 10)
+	var bs []byte
+	var err error
+	if md.Encoding() == audio.MP3 {
+		// We are much more reliable using lame directly than over ffmpeg when downsampling
+		// MP3 files directly.
+		bs, err = exec.Command("lame", "--mp3input", "-h", "-V"+q, src, dst).CombinedOutput()
+	} else if md.Encoding() == audio.FLAC {
+		// Because ffmpeg is having some bugs, we avoid using it when possible.
+		enc := mp3.NewEncoder()
+		enc.Quality = e.TargetQuality
+		dec := exec.Command("flac", "-c", "-d", src)
+		bs, err = enc.EncodeFromStdin(dec, dst, md.Metadata())
+	} else {
+		bs, err = exec.Command("ffmpeg", "-i", src, "-qscale:a", q, dst).CombinedOutput()
+	}
+	if err != nil {
+		return &ExecError{
+			Err:    err,
+			Output: string(bs),
+		}
+	}
+	return nil
+}
+
+type OPUSEncoder struct {
+	TargetBitrate int
+}
+
+func (e *OPUSEncoder) Ext() string { return ".opus" }
+
+func (e *OPUSEncoder) Encode(src, dst string, md Audio) error {
+	br := strconv.FormatInt(int64(e.TargetBitrate), 10)
+	bs, err := exec.Command("ffmpeg", "-i", src, "-acodec", "libopus", "-vbr", "on", "-compression_level", "10", "-b:a", br, dst).CombinedOutput()
+	if err != nil {
+		return &ExecError{
+			Err:    err,
+			Output: string(bs),
+		}
+	}
+	return nil
 }

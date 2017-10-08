@@ -6,58 +6,13 @@ package lackey
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
 
-	"github.com/goulash/audio"
 	"github.com/goulash/osutil"
 	"github.com/jeffail/tunny"
 )
-
-type AudioOperation int
-
-const (
-	SkipAudio AudioOperation = iota
-	IgnoreAudio
-	TranscodeAudio
-	UpdateAudio
-	CopyAudio
-)
-
-type Audio interface {
-	IsExists() bool
-	FileInfo() os.FileInfo
-	Encoding() audio.Codec
-	Metadata() audio.Metadata
-}
-
-type Operator interface {
-	// WhichExt takes the source metadata and returns the
-	// expected destination extension of the file, such as ".mp3".
-	// If "" is returned, the extension remains unchanged.
-	WhichExt(src Audio) string
-
-	// Which returns an audio operation that should be
-	// performed, based on src and dst (possibly nil).
-	Which(src, dst Audio) AudioOperation
-
-	// Feedback
-	Ok(dst string) error
-	Ignore(dst string) error
-	Error(err error) error
-	Warn(err error) error
-
-	// Operations
-	RemoveDir(dst string) error
-	CreateDir(dst string) error
-
-	RemoveFile(dst string) error
-	CopyFile(src, dst string) error
-	Transcode(src, dst string, md Audio) error
-	Update(src, dst string, md Audio) error
-}
 
 type Planner struct {
 	IgnoreData   bool

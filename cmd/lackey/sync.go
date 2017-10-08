@@ -17,9 +17,11 @@ var (
 	syncDryRun           bool
 	syncOnlyMusic        bool
 	syncForceTranscode   bool
+	syncOPUS			 bool
 	syncConcurrent       int
 	syncBitrateThreshold int
 	syncTargetQuality    int
+	syncTargetBitrate    int
 )
 
 func init() {
@@ -27,7 +29,9 @@ func init() {
 	syncCmd.Flags().IntVarP(&syncConcurrent, "concurrent", "w", runtime.NumCPU(), "number of concurrent workers")
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
 	syncCmd.Flags().BoolVarP(&syncForceTranscode, "force", "f", false, "force transcode for all audio")
-	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target mp3 quality")
+	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target MP3 quality")
+	syncCmd.Flags().IntVarP(&syncTargetBitrate, "bitrate", "r", 96, "target OPUS bitrate")
+	syncCmd.Flats().BoolVarP(&syncOPUS, "opus", "u", false, "output codec is OPUS not MP3")
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
@@ -72,10 +76,21 @@ var syncCmd = &cobra.Command{
 			return err
 		}
 
+		var e lackey.Encoder
+		if syncOPUS {
+			e = &lackey.OPUSEncoder{
+				TargetBitrate: syncTargetBitrate
+			}
+		} else {
+			e = &lackey.MP3Encoder{
+				TargetQuality: syncTargetQuality
+			}
+		}
+
 		op := &lackey.Runner{
 			Color:            col,
 			BitrateThreshold: syncBitrateThreshold,
-			TargetQuality:    syncTargetQuality,
+			Encoder: e,
 			ForceTranscode:   syncForceTranscode,
 			DryRun:           syncDryRun,
 			Verbose:          Conf.Verbose,

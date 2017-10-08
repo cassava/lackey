@@ -147,6 +147,7 @@ var types = map[string]Type{
 	".m4b":  Audio,
 	".mpc":  Audio,
 	".ogg":  Audio,
+	".opus": Audio,
 	".ra":   Audio,
 	".wav":  Audio,
 

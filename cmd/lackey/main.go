@@ -21,9 +21,7 @@ var Conf struct {
 	Color       string
 
 	lackey.LibraryReader
-
 	BitrateThreshold int
-	TargetQuality    int
 }
 
 // col lets us print in colors.
