@@ -25,15 +25,15 @@ func (err *ExecError) Error() string { return err.Err.Error() }
 
 type Encoder interface {
 	Ext() string
+	CanCopy(src, dst Audio) bool
 	Encode(src, dst string, md Audio) error
 }
 
 type Runner struct {
 	Color *color.Colorizer
 
-	Encoder          Encoder
-	BitrateThreshold int
-	ForceTranscode   bool
+	Encoder        Encoder
+	ForceTranscode bool
 
 	DryRun    bool
 	Verbose   bool
@@ -52,30 +52,11 @@ func (o *Runner) canEncode(c audio.Codec) bool {
 	return c == audio.FLAC || c == audio.MP3 || c == audio.M4A
 }
 
-func (o *Runner) whichMP3(src, dst Audio) AudioOperation {
-	if !dst.IsExists() {
-		sm := src.Metadata()
-		if sm.EncodingBitrate() > o.BitrateThreshold {
-			return TranscodeAudio
-		}
+func (o *Runner) transcodeOrCopy(src, dst Audio) AudioOperation {
+	if o.Encoder.CanCopy(src, dst) {
 		return CopyAudio
 	}
-	sfi, dfi := src.FileInfo(), dst.FileInfo()
-	if sfi.ModTime().After(dfi.ModTime()) {
-		return UpdateAudio
-	}
-	return SkipAudio
-}
-
-func (o *Runner) which(src, dst Audio) AudioOperation {
-	if !dst.IsExists() {
-		return TranscodeAudio
-	}
-	sfi, dfi := src.FileInfo(), dst.FileInfo()
-	if sfi.ModTime().After(dfi.ModTime()) {
-		return UpdateAudio
-	}
-	return SkipAudio
+	return TranscodeAudio
 }
 
 func (o *Runner) Which(src, dst Audio) AudioOperation {
@@ -86,13 +67,17 @@ func (o *Runner) Which(src, dst Audio) AudioOperation {
 	if o.ForceTranscode {
 		return TranscodeAudio
 	}
-
-	switch src.Encoding() {
-	case audio.MP3:
-		return o.whichMP3(src, dst)
-	default:
-		return o.which(src, dst)
+	if !dst.IsExists() {
+		return o.transcodeOrCopy(src, dst)
 	}
+	sfi, dfi := src.FileInfo(), dst.FileInfo()
+	if dfi.Size() == 0 {
+		return o.transcodeOrCopy(src, dst)
+	}
+	if sfi.ModTime().After(dfi.ModTime()) {
+		return UpdateAudio
+	}
+	return SkipAudio
 }
 
 func (o *Runner) Ok(dst string) error {
@@ -192,6 +177,9 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 		return nil
 	}
 
+	if ex, _ := osutil.FileExists(dst); ex {
+		os.Remove(dst)
+	}
 	return o.Encoder.Encode(src, path, md)
 }
 
@@ -214,10 +202,22 @@ func (o *Runner) Update(src string, dst string, md Audio) error {
 }
 
 type MP3Encoder struct {
-	TargetQuality int
+	TargetQuality    int
+	BitrateThreshold int
 }
 
 func (e *MP3Encoder) Ext() string { return ".mp3" }
+
+func (e *MP3Encoder) CanCopy(src, dst Audio) bool {
+	if src.Encoding() != audio.MP3 {
+		return false
+	}
+	sm := src.Metadata()
+	if sm.EncodingBitrate() > e.BitrateThreshold {
+		return false
+	}
+	return true
+}
 
 func (e *MP3Encoder) Encode(src, dst string, md Audio) error {
 	q := strconv.FormatInt(int64(e.TargetQuality), 10)
@@ -234,7 +234,7 @@ func (e *MP3Encoder) Encode(src, dst string, md Audio) error {
 		dec := exec.Command("flac", "-c", "-d", src)
 		bs, err = enc.EncodeFromStdin(dec, dst, md.Metadata())
 	} else {
-		bs, err = exec.Command("ffmpeg", "-i", src, "-qscale:a", q, dst).CombinedOutput()
+		bs, err = exec.Command("ffmpeg", "-i", src, "-vn", "-qscale:a", q, dst).CombinedOutput()
 	}
 	if err != nil {
 		return &ExecError{
@@ -257,8 +257,12 @@ func (e *OPUSEncoder) Ext() string {
 	return e.Extension
 }
 
+func (e *OPUSEncoder) CanCopy(src, dst Audio) bool {
+	return false
+}
+
 func (e *OPUSEncoder) Encode(src, dst string, md Audio) error {
-	bs, err := exec.Command("ffmpeg", "-i", src, "-acodec", "libopus", "-vbr", "on",
+	bs, err := exec.Command("ffmpeg", "-i", src, "-vn", "-acodec", "libopus", "-vbr", "on",
 		"-compression_level", "10", "-b:a", e.TargetBitrate, dst).CombinedOutput()
 	if err != nil {
 		return &ExecError{

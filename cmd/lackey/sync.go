@@ -13,30 +13,38 @@ import (
 )
 
 var (
-	syncDeleteBefore     bool
-	syncDryRun           bool
-	syncOnlyMusic        bool
-	syncForceTranscode   bool
-	syncOPUS             bool
-	syncConcurrent       int
+	syncDeleteBefore   bool
+	syncDryRun         bool
+	syncOnlyMusic      bool
+	syncForceTranscode bool
+	syncConcurrent     int
+
+	// MP3:
 	syncBitrateThreshold int
 	syncTargetQuality    int
-	syncTargetBitrate    string
-	syncUseOGG           bool
+
+	// OPUS:
+	syncOPUS          bool
+	syncTargetBitrate string
+	syncUseOGG        bool
 )
 
 func init() {
 	MainCmd.AddCommand(syncCmd)
 	syncCmd.Flags().IntVarP(&syncConcurrent, "concurrent", "w", runtime.NumCPU(), "number of concurrent workers")
-	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
 	syncCmd.Flags().BoolVarP(&syncForceTranscode, "force", "f", false, "force transcode for all audio")
-	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target MP3 quality")
-	syncCmd.Flags().StringVarP(&syncTargetBitrate, "bitrate", "r", "96k", "target OPUS bitrate")
-	syncCmd.Flags().BoolVarP(&syncOPUS, "opus", "u", false, "output codec is OPUS not MP3")
-	syncCmd.Flags().BoolVar(&syncUseOGG, "use-ogg-extension", false, "use the .ogg extension instead of .opus")
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
+
+	// MP3:
+	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold at which we copy instead of transcoding")
+	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target MP3 quality (0=highest, largest; 9=lowest, smallest)")
+
+	// OPUS:
+	syncCmd.Flags().StringVarP(&syncTargetBitrate, "bitrate", "r", "96k", "target OPUS bitrate, in bps")
+	syncCmd.Flags().BoolVarP(&syncOPUS, "opus", "u", false, "output codec is OPUS not MP3")
+	syncCmd.Flags().BoolVar(&syncUseOGG, "use-ogg-extension", false, "use the .ogg extension instead of .opus")
 }
 
 var syncCmd = &cobra.Command{
@@ -90,20 +98,20 @@ var syncCmd = &cobra.Command{
 			}
 		} else {
 			e = &lackey.MP3Encoder{
-				TargetQuality: syncTargetQuality,
+				TargetQuality:    syncTargetQuality,
+				BitrateThreshold: syncBitrateThreshold,
 			}
 		}
 
 		op := &lackey.Runner{
-			Color:            col,
-			BitrateThreshold: syncBitrateThreshold,
-			Encoder:          e,
-			ForceTranscode:   syncForceTranscode,
-			DryRun:           syncDryRun,
-			Verbose:          Conf.Verbose,
-			Strip:            true,
-			SrcPrefix:        sdb.Path() + "/",
-			DstPrefix:        ddb.Path() + "/",
+			Color:          col,
+			Encoder:        e,
+			ForceTranscode: syncForceTranscode,
+			DryRun:         syncDryRun,
+			Verbose:        Conf.Verbose,
+			Strip:          true,
+			SrcPrefix:      sdb.Path() + "/",
+			DstPrefix:      ddb.Path() + "/",
 		}
 		p := lackey.NewPlanner(sdb, ddb, op)
 		p.IgnoreData = syncOnlyMusic
