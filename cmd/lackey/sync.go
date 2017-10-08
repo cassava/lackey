@@ -21,7 +21,7 @@ var (
 	syncConcurrent       int
 	syncBitrateThreshold int
 	syncTargetQuality    int
-	syncTargetBitrate    int
+	syncTargetBitrate    string
 )
 
 func init() {
@@ -30,7 +30,7 @@ func init() {
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold")
 	syncCmd.Flags().BoolVarP(&syncForceTranscode, "force", "f", false, "force transcode for all audio")
 	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target MP3 quality")
-	syncCmd.Flags().IntVarP(&syncTargetBitrate, "bitrate", "r", 96, "target OPUS bitrate")
+	syncCmd.Flags().StringVarP(&syncTargetBitrate, "bitrate", "r", "96k", "target OPUS bitrate")
 	syncCmd.Flags().BoolVarP(&syncOPUS, "opus", "u", false, "output codec is OPUS not MP3")
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")

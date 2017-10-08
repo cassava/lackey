@@ -246,14 +246,14 @@ func (e *MP3Encoder) Encode(src, dst string, md Audio) error {
 }
 
 type OPUSEncoder struct {
-	TargetBitrate int
+	TargetBitrate string
 }
 
 func (e *OPUSEncoder) Ext() string { return ".opus" }
 
 func (e *OPUSEncoder) Encode(src, dst string, md Audio) error {
-	br := strconv.FormatInt(int64(e.TargetBitrate), 10)
-	bs, err := exec.Command("ffmpeg", "-i", src, "-acodec", "libopus", "-vbr", "on", "-compression_level", "10", "-b:a", br, dst).CombinedOutput()
+	bs, err := exec.Command("ffmpeg", "-i", src, "-acodec", "libopus", "-vbr", "on",
+		"-compression_level", "10", "-b:a", e.TargetBitrate, dst).CombinedOutput()
 	if err != nil {
 		return &ExecError{
 			Err:    err,
