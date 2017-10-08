@@ -22,6 +22,7 @@ var (
 	syncBitrateThreshold int
 	syncTargetQuality    int
 	syncTargetBitrate    string
+	syncUseOGG           bool
 )
 
 func init() {
@@ -32,6 +33,7 @@ func init() {
 	syncCmd.Flags().IntVarP(&syncTargetQuality, "quality", "q", 4, "target MP3 quality")
 	syncCmd.Flags().StringVarP(&syncTargetBitrate, "bitrate", "r", "96k", "target OPUS bitrate")
 	syncCmd.Flags().BoolVarP(&syncOPUS, "opus", "u", false, "output codec is OPUS not MP3")
+	syncCmd.Flags().BoolVar(&syncUseOGG, "use-ogg-extension", false, "use the .ogg extension instead of .opus")
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
@@ -78,7 +80,12 @@ var syncCmd = &cobra.Command{
 
 		var e lackey.Encoder
 		if syncOPUS {
+			ext := ".opus"
+			if syncUseOGG {
+				ext = ".ogg"
+			}
 			e = &lackey.OPUSEncoder{
+				Extension:     ext,
 				TargetBitrate: syncTargetBitrate,
 			}
 		} else {
