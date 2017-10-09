@@ -2,7 +2,7 @@ Lackey Releases
 ================
 
 ## Version 0.4 (in development)
-At the moment, only some refactoring.
+This release adds OPUS encoding support.
 
 ## Version 0.3 (12 January 2017)
 This release changes the versioning scheme to use semantic versioning.

@@ -177,8 +177,11 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 		return nil
 	}
 
-	if ex, _ := osutil.FileExists(dst); ex {
-		os.Remove(dst)
+	if ex, _ := osutil.FileExists(path); ex {
+		err := os.Remove(path)
+		if err != nil {
+			return err
+		}
 	}
 	return o.Encoder.Encode(src, path, md)
 }
