@@ -162,7 +162,15 @@ func (p *Planner) planFile(src, dst *Entry) error {
 			}, nil)
 			return nil
 		case UpdateAudio:
-			return p.op.Update(src.AbsPath(), path, dst)
+			p.wg.Add(1)
+			p.pool.SendWorkAsync(func() {
+				err := p.op.Update(src.AbsPath(), path, dst)
+				if err != nil {
+					p.errs <- err
+				}
+				p.wg.Done()
+			}, nil)
+			return nil
 		case IgnoreAudio:
 			return p.op.Ignore(path)
 		default:
