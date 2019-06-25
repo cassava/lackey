@@ -18,6 +18,7 @@ var (
 	syncOnlyMusic      bool
 	syncForceTranscode bool
 	syncConcurrent     int
+	syncDataExcept     []string
 
 	// MP3:
 	syncBitrateThreshold int
@@ -36,6 +37,7 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncDryRun, "dryrun", "n", false, "just show what will be done, without doing it")
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
+	syncCmd.Flags().StringSliceVarP(&syncDataExcept, "except", "e", []string{}, "data exceptions (filenames)")
 
 	// MP3:
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold at which we copy instead of transcoding")
@@ -117,6 +119,9 @@ var syncCmd = &cobra.Command{
 		p.IgnoreData = syncOnlyMusic
 		p.DeleteBefore = syncDeleteBefore
 		p.Concurrent = syncConcurrent
+		for _, except := range syncDataExcept {
+			p.DataExcept[except] = true
+		}
 		return p.Plan()
 	},
 }

@@ -15,7 +15,9 @@ import (
 )
 
 type Planner struct {
-	IgnoreData   bool
+	IgnoreData bool
+	DataExcept map[string]bool
+
 	DeleteBefore bool
 	TranscodeAll bool
 	Concurrent   int
@@ -32,6 +34,7 @@ type Planner struct {
 
 func NewPlanner(src, dst *Database, op Operator) *Planner {
 	return &Planner{
+		DataExcept: make(map[string]bool),
 		Concurrent: runtime.NumCPU(),
 
 		op:  op,
@@ -176,13 +179,21 @@ func (p *Planner) planFile(src, dst *Entry) error {
 		default:
 			panic("unknown audio operation")
 		}
-	} else if !p.IgnoreData && !src.IsIgnored() {
+	} else if src.IsIgnored() {
+		return p.op.Ignore(path)
+	} else {
+		if p.IgnoreData != p.DataExcept[src.Filename()] {
+			// We land in here when:
+			// - Ignore all data (true) and there is no exception (false)
+			// - Do not ignore all data (false) and there is an exception (true)
+			return p.op.Ignore(path)
+		}
+
 		if dst != nil && dst.FileInfo().ModTime().After(src.FileInfo().ModTime()) {
 			return p.op.Ok(path)
 		}
 		return p.op.CopyFile(src.AbsPath(), path)
 	}
-	return p.op.Ignore(path)
 }
 
 // dpath returns the absolute destination path, given the key.
