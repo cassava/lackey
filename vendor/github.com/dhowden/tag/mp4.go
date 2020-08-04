@@ -10,8 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
+	"strings"
 )
 
 var atomTypes = map[int]string{
@@ -101,52 +101,77 @@ func (m metadataMP4) readAtoms(r io.ReadSeeker) error {
 		}
 
 		_, ok := atoms[name]
+		var data []string
 		if name == "----" {
-			name, size, err = readCustomAtom(r, size)
+			name, data, err = readCustomAtom(r, size)
 			if err != nil {
 				return err
 			}
 
 			if name != "----" {
 				ok = true
+				size = 0 // already read data
 			}
 		}
 
 		if !ok {
-			_, err := r.Seek(int64(size-8), os.SEEK_CUR)
+			_, err := r.Seek(int64(size-8), io.SeekCurrent)
 			if err != nil {
 				return err
 			}
 			continue
 		}
 
-		err = m.readAtomData(r, name, size-8)
+		err = m.readAtomData(r, name, size-8, data)
 		if err != nil {
 			return err
 		}
 	}
 }
 
-func (m metadataMP4) readAtomData(r io.ReadSeeker, name string, size uint32) error {
-	b, err := readBytes(r, int(size))
-	if err != nil {
-		return err
+func (m metadataMP4) readAtomData(r io.ReadSeeker, name string, size uint32, processedData []string) error {
+	var b []byte
+	var err error
+	var contentType string
+	if len(processedData) > 0 {
+		b = []byte(strings.Join(processedData, ";")) // add delimiter if multiple data fields
+		contentType = "text"
+	} else {
+		// read the data
+		b, err = readBytes(r, uint(size))
+		if err != nil {
+			return err
+		}
+		if len(b) < 8 {
+			return fmt.Errorf("invalid encoding: expected at least %d bytes, got %d", 8, len(b))
+		}
+
+		// "data" + size (4 bytes each)
+		b = b[8:]
+
+		if len(b) < 3 {
+			return fmt.Errorf("invalid encoding: expected at least %d bytes, for class, got %d", 3, len(b))
+		}
+		class := getInt(b[1:4])
+		var ok bool
+		contentType, ok = atomTypes[class]
+		if !ok {
+			return fmt.Errorf("invalid content type: %v (%x) (%x)", class, b[1:4], b)
+		}
+
+		// 4: atom version (1 byte) + atom flags (3 bytes)
+		// 4: NULL (usually locale indicator)
+		if len(b) < 8 {
+			return fmt.Errorf("invalid encoding: expected at least %d bytes, for atom version and flags, got %d", 8, len(b))
+		}
+		b = b[8:]
 	}
-
-	// "data" + size (4 bytes each)
-	b = b[8:]
-
-	class := getInt(b[1:4])
-	contentType, ok := atomTypes[class]
-	if !ok {
-		return fmt.Errorf("invalid content type: %v (%x) (%x)", class, b[1:4], b)
-	}
-
-	// 4: atom version (1 byte) + atom flags (3 bytes)
-	// 4: NULL (usually locale indicator)
-	b = b[8:]
 
 	if name == "trkn" || name == "disk" {
+		if len(b) < 6 {
+			return fmt.Errorf("invalid encoding: expected at least %d bytes, for track and disk numbers, got %d", 6, len(b))
+		}
+
 		m.data[name] = int(b[3])
 		m.data[name+"_count"] = int(b[5])
 		return nil
@@ -173,6 +198,9 @@ func (m metadataMP4) readAtomData(r io.ReadSeeker, name string, size uint32) err
 		data = string(b)
 
 	case "uint8":
+		if len(b) < 1 {
+			return fmt.Errorf("invalid encoding: expected at least %d bytes, for integer tag data, got %d", 1, len(b))
+		}
 		data = getInt(b[:1])
 
 	case "jpeg", "png":
@@ -200,48 +228,50 @@ func readAtomHeader(r io.ReadSeeker) (name string, size uint32, err error) {
 // Should have 3 sub atoms : mean, name and data.
 // We check that mean is "com.apple.iTunes" and we use the subname as
 // the name, and move to the data atom.
+// Data atom could have multiple data values, each with a header.
 // If anything goes wrong, we jump at the end of the "----" atom.
-func readCustomAtom(r io.ReadSeeker, size uint32) (string, uint32, error) {
+func readCustomAtom(r io.ReadSeeker, size uint32) (_ string, data []string, _ error) {
 	subNames := make(map[string]string)
-	var dataSize uint32
 
 	for size > 8 {
 		subName, subSize, err := readAtomHeader(r)
 		if err != nil {
-			return "", 0, err
+			return "", nil, err
 		}
 
 		// Remove the size of the atom from the size counter
-		size -= subSize
+		if size >= subSize {
+			size -= subSize
+		} else {
+			return "", nil, errors.New("--- invalid size")
+		}
 
+		b, err := readBytes(r, uint(subSize-8))
+		if err != nil {
+			return "", nil, err
+		}
+
+		if len(b) < 4 {
+			return "", nil, fmt.Errorf("invalid encoding: expected at least %d bytes, got %d", 4, len(b))
+		}
 		switch subName {
 		case "mean", "name":
-			b, err := readBytes(r, int(subSize-8))
-			if err != nil {
-				return "", 0, err
-			}
 			subNames[subName] = string(b[4:])
-
 		case "data":
-			// Found the "data" atom, rewind
-			dataSize = subSize + 8 // will need to re-read "data" + size (4 + 4)
-			_, err := r.Seek(-8, os.SEEK_CUR)
-			if err != nil {
-				return "", 0, err
-			}
+			data = append(data, string(b[4:]))
 		}
 	}
 
 	// there should remain only the header size
 	if size != 8 {
 		err := errors.New("---- atom out of bounds")
-		return "", 0, err
+		return "", nil, err
 	}
 
-	if subNames["mean"] != "com.apple.iTunes" || subNames["name"] == "" || dataSize == 0 {
-		return "----", 0, nil
+	if subNames["mean"] != "com.apple.iTunes" || subNames["name"] == "" || len(data) == 0 {
+		return "----", nil, nil
 	}
-	return subNames["name"], dataSize, nil
+	return subNames["name"], data, nil
 }
 
 func (metadataMP4) Format() Format       { return MP4 }
@@ -318,6 +348,14 @@ func (m metadataMP4) Disc() (int, int) {
 
 func (m metadataMP4) Lyrics() string {
 	t, ok := m.data["\xa9lyr"]
+	if !ok {
+		return ""
+	}
+	return t.(string)
+}
+
+func (m metadataMP4) Comment() string {
+	t, ok := m.data["\xa9cmt"]
 	if !ok {
 		return ""
 	}

@@ -18,7 +18,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 )
 
 // ErrNoTagsFound is the error returned by ReadFrom when the metadata format
@@ -34,7 +33,7 @@ func ReadFrom(r io.ReadSeeker) (Metadata, error) {
 		return nil, err
 	}
 
-	_, err = r.Seek(-11, os.SEEK_CUR)
+	_, err = r.Seek(-11, io.SeekCurrent)
 	if err != nil {
 		return nil, fmt.Errorf("could not seek back to original position: %v", err)
 	}
@@ -51,6 +50,9 @@ func ReadFrom(r io.ReadSeeker) (Metadata, error) {
 
 	case string(b[0:3]) == "ID3":
 		return ReadID3v2Tags(r)
+
+	case string(b[0:4]) == "DSD ":
+		return ReadDSFTags(r)
 	}
 
 	m, err := ReadID3v1Tags(r)
@@ -69,12 +71,12 @@ type Format string
 // Supported tag formats.
 const (
 	UnknownFormat Format = ""        // Unknown Format.
-	ID3v1                = "ID3v1"   // ID3v1 tag format.
-	ID3v2_2              = "ID3v2.2" // ID3v2.2 tag format.
-	ID3v2_3              = "ID3v2.3" // ID3v2.3 tag format (most common).
-	ID3v2_4              = "ID3v2.4" // ID3v2.4 tag format.
-	MP4                  = "MP4"     // MP4 tag (atom) format (see http://www.ftyps.com/ for a full file type list)
-	VORBIS               = "VORBIS"  // Vorbis Comment tag format.
+	ID3v1         Format = "ID3v1"   // ID3v1 tag format.
+	ID3v2_2       Format = "ID3v2.2" // ID3v2.2 tag format.
+	ID3v2_3       Format = "ID3v2.3" // ID3v2.3 tag format (most common).
+	ID3v2_4       Format = "ID3v2.4" // ID3v2.4 tag format.
+	MP4           Format = "MP4"     // MP4 tag (atom) format (see http://www.ftyps.com/ for a full file type list)
+	VORBIS        Format = "VORBIS"  // Vorbis Comment tag format.
 )
 
 // FileType is an enumeration of the audio file types supported by this package, in particular
@@ -85,13 +87,14 @@ type FileType string
 // Supported file types.
 const (
 	UnknownFileType FileType = ""     // Unknown FileType.
-	MP3                      = "MP3"  // MP3 file
-	M4A                      = "M4A"  // M4A file Apple iTunes (ACC) Audio
-	M4B                      = "M4B"  // M4A file Apple iTunes (ACC) Audio Book
-	M4P                      = "M4P"  // M4A file Apple iTunes (ACC) AES Protected Audio
-	ALAC                     = "ALAC" // Apple Lossless file FIXME: actually detect this
-	FLAC                     = "FLAC" // FLAC file
-	OGG                      = "OGG"  // OGG file
+	MP3             FileType = "MP3"  // MP3 file
+	M4A             FileType = "M4A"  // M4A file Apple iTunes (ACC) Audio
+	M4B             FileType = "M4B"  // M4A file Apple iTunes (ACC) Audio Book
+	M4P             FileType = "M4P"  // M4A file Apple iTunes (ACC) AES Protected Audio
+	ALAC            FileType = "ALAC" // Apple Lossless file FIXME: actually detect this
+	FLAC            FileType = "FLAC" // FLAC file
+	OGG             FileType = "OGG"  // OGG file
+	DSF             FileType = "DSF"  // DSF file DSD Sony format see https://dsd-guide.com/sites/default/files/white-papers/DSFFileFormatSpec_E.pdf
 )
 
 // Metadata is an interface which is used to describe metadata retrieved by this package.
@@ -134,6 +137,9 @@ type Metadata interface {
 
 	// Lyrics returns the lyrics, or an empty string if unavailable.
 	Lyrics() string
+
+	// Comment returns the comment, or an empty string if unavailable.
+	Comment() string
 
 	// Raw returns the raw mapping of retrieved tag names and associated values.
 	// NB: tag/atom names are not standardised between formats.

@@ -103,6 +103,7 @@ func ReadMetadata(file string) (*Metadata, error) {
 	Stats.ReadMetadataMeta.Add(float64(time.Since(s1)))
 
 	// Read length and bitrate (slow 140ms)
+	skipped := 0
 	s2 := time.Now()
 	f.Seek(0, 0)
 	dec := mp3.NewDecoder(f)
@@ -111,7 +112,7 @@ func ReadMetadata(file string) (*Metadata, error) {
 		dur   time.Duration
 		bytes int64
 	)
-	for dec.Decode(&frame) == nil {
+	for dec.Decode(&frame, &skipped) == nil {
 		dur += frame.Duration()
 		bytes += int64(frame.Size())
 	}

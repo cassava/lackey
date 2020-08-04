@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/Jeffail/tunny"
 	"github.com/goulash/osutil"
-	"github.com/jeffail/tunny"
 )
 
 type Planner struct {

@@ -5,11 +5,14 @@
 package tag
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func newMetadataVorbis() *metadataVorbis {
@@ -24,28 +27,28 @@ type metadataVorbis struct {
 }
 
 func (m *metadataVorbis) readVorbisComment(r io.Reader) error {
-	vendorLen, err := readInt32LittleEndian(r)
+	vendorLen, err := readUint32LittleEndian(r)
 	if err != nil {
 		return err
 	}
 
-	vendor, err := readString(r, vendorLen)
+	vendor, err := readString(r, uint(vendorLen))
 	if err != nil {
 		return err
 	}
 	m.c["vendor"] = vendor
 
-	commentsLen, err := readInt32LittleEndian(r)
+	commentsLen, err := readUint32LittleEndian(r)
 	if err != nil {
 		return err
 	}
 
-	for i := 0; i < commentsLen; i++ {
-		l, err := readInt32LittleEndian(r)
+	for i := uint32(0); i < commentsLen; i++ {
+		l, err := readUint32LittleEndian(r)
 		if err != nil {
 			return err
 		}
-		s, err := readString(r, l)
+		s, err := readString(r, uint(l))
 		if err != nil {
 			return err
 		}
@@ -55,6 +58,15 @@ func (m *metadataVorbis) readVorbisComment(r io.Reader) error {
 		}
 		m.c[strings.ToLower(k)] = v
 	}
+
+	if b64data, ok := m.c["metadata_block_picture"]; ok {
+		data, err := base64.StdEncoding.DecodeString(b64data)
+		if err != nil {
+			return err
+		}
+		m.readPictureBlock(bytes.NewReader(data))
+	}
+
 	return nil
 }
 
@@ -67,7 +79,7 @@ func (m *metadataVorbis) readPictureBlock(r io.Reader) error {
 	if !ok {
 		return fmt.Errorf("invalid picture type: %v", b)
 	}
-	mimeLen, err := readInt(r, 4)
+	mimeLen, err := readUint(r, 4)
 	if err != nil {
 		return err
 	}
@@ -86,7 +98,7 @@ func (m *metadataVorbis) readPictureBlock(r io.Reader) error {
 		ext = "gif"
 	}
 
-	descLen, err := readInt(r, 4)
+	descLen, err := readUint(r, 4)
 	if err != nil {
 		return err
 	}
@@ -145,7 +157,7 @@ func parseComment(c string) (k, v string, err error) {
 }
 
 func (m *metadataVorbis) Format() Format {
-	return FLAC
+	return VORBIS
 }
 
 func (m *metadataVorbis) Raw() map[string]interface{} {
@@ -201,8 +213,23 @@ func (m *metadataVorbis) Genre() string {
 }
 
 func (m *metadataVorbis) Year() int {
-	// FIXME: try to parse the date in m.c["date"] to extract this
-	return 0
+	var dateFormat string
+
+	// The date need to follow the international standard https://en.wikipedia.org/wiki/ISO_8601
+	// and obviously the VorbisComment standard https://wiki.xiph.org/VorbisComment#Date_and_time
+	switch len(m.c["date"]) {
+	case 0:
+		return 0
+	case 4:
+		dateFormat = "2006"
+	case 7:
+		dateFormat = "2006-01"
+	case 10:
+		dateFormat = "2006-01-02"
+	}
+
+	t, _ := time.Parse(dateFormat, m.c["date"])
+	return t.Year()
 }
 
 func (m *metadataVorbis) Track() (int, int) {
@@ -221,6 +248,13 @@ func (m *metadataVorbis) Disc() (int, int) {
 
 func (m *metadataVorbis) Lyrics() string {
 	return m.c["lyrics"]
+}
+
+func (m *metadataVorbis) Comment() string {
+	if m.c["comment"] != "" {
+		return m.c["comment"]
+	}
+	return m.c["description"]
 }
 
 func (m *metadataVorbis) Picture() *Picture {

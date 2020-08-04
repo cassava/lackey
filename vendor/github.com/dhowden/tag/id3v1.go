@@ -7,7 +7,6 @@ package tag
 import (
 	"errors"
 	"io"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -44,7 +43,7 @@ var ErrNotID3v1 = errors.New("invalid ID3v1 header")
 // ReadID3v1Tags reads ID3v1 tags from the io.ReadSeeker.  Returns ErrNotID3v1
 // if there are no ID3v1 tags, otherwise non-nil error if there was a problem.
 func ReadID3v1Tags(r io.ReadSeeker) (Metadata, error) {
-	_, err := r.Seek(-128, os.SEEK_END)
+	_, err := r.Seek(-128, io.SeekEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -83,10 +82,10 @@ func ReadID3v1Tags(r io.ReadSeeker) (Metadata, error) {
 	var comment string
 	var track int
 	if commentBytes[28] == 0 {
-		comment = strings.TrimSpace(string(commentBytes[:28]))
+		comment = trimString(string(commentBytes[:28]))
 		track = int(commentBytes[29])
 	} else {
-		comment = strings.TrimSpace(string(commentBytes))
+		comment = trimString(string(commentBytes))
 	}
 
 	var genre string
@@ -99,15 +98,19 @@ func ReadID3v1Tags(r io.ReadSeeker) (Metadata, error) {
 	}
 
 	m := make(map[string]interface{})
-	m["title"] = strings.TrimSpace(title)
-	m["artist"] = strings.TrimSpace(artist)
-	m["album"] = strings.TrimSpace(album)
-	m["year"] = strings.TrimSpace(year)
-	m["comment"] = strings.TrimSpace(comment)
+	m["title"] = trimString(title)
+	m["artist"] = trimString(artist)
+	m["album"] = trimString(album)
+	m["year"] = trimString(year)
+	m["comment"] = trimString(comment)
 	m["track"] = track
 	m["genre"] = genre
 
 	return metadataID3v1(m), nil
+}
+
+func trimString(x string) string {
+	return strings.TrimSpace(strings.Trim(x, "\x00"))
 }
 
 // metadataID3v1 is the implementation of Metadata used for ID3v1 tags.
@@ -138,3 +141,4 @@ func (m metadataID3v1) Composer() string    { return "" }
 func (metadataID3v1) Disc() (int, int)      { return 0, 0 }
 func (m metadataID3v1) Picture() *Picture   { return nil }
 func (m metadataID3v1) Lyrics() string      { return "" }
+func (m metadataID3v1) Comment() string     { return m["comment"].(string) }
