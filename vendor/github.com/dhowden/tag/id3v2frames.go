@@ -452,18 +452,24 @@ func (t Comm) String() string {
 // Description         <text string according to encoding> $00 (00)
 // Value               <text string according to encoding>
 func readTextWithDescrFrame(b []byte, hasLang bool, encoded bool) (*Comm, error) {
+	if len(b) == 0 {
+		return nil, errors.New("error decoding tag description text: invalid encoding")
+	}
 	enc := b[0]
 	b = b[1:]
 
 	c := &Comm{}
 	if hasLang {
+		if len(b) < 3 {
+			return nil, errors.New("hasLang set but not enough data for language information")
+		}
 		c.Language = string(b[:3])
 		b = b[3:]
 	}
 
 	descTextSplit := dataSplit(b, enc)
-	if len(descTextSplit) < 1 {
-		return nil, fmt.Errorf("error decoding tag description text: invalid encoding")
+	if len(descTextSplit) == 0 {
+		return nil, errors.New("error decoding tag description text: invalid encoding")
 	}
 
 	desc, err := decodeText(enc, descTextSplit[0])
@@ -561,6 +567,10 @@ func (p Picture) String() string {
 // Description        <textstring> $00 (00)
 // Picture data       <binary data>
 func readPICFrame(b []byte) (*Picture, error) {
+	if len(b) < 5 {
+		return nil, errors.New("invalid PIC frame")
+	}
+
 	enc := b[0]
 	ext := string(b[1:4])
 	picType := b[4]
@@ -601,8 +611,15 @@ func readPICFrame(b []byte) (*Picture, error) {
 // Description     <text string according to encoding> $00 (00)
 // Picture data    <binary data>
 func readAPICFrame(b []byte) (*Picture, error) {
+	if len(b) == 0 {
+		return nil, errors.New("error decoding APIC: invalid encoding")
+	}
 	enc := b[0]
 	mimeDataSplit := bytes.SplitN(b[1:], singleZero, 2)
+	if len(mimeDataSplit) != 2 {
+		return nil, errors.New("error decoding APIC: invalid encoding")
+	}
+
 	mimeType := string(mimeDataSplit[0])
 
 	b = mimeDataSplit[1]

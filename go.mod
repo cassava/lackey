@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/Jeffail/tunny v0.0.0-20171107125207-452a8e97d6a3
-	github.com/dhowden/tag v0.0.0-20200412032933-5d76b8eaae27
+	github.com/dhowden/tag v0.0.0-20201120070457-d52dcb253c63
 	github.com/facebookgo/ensure v0.0.0-20200202191622-63f1cf65ac4c // indirect
 	github.com/facebookgo/stack v0.0.0-20160209184415-751773369052 // indirect
 	github.com/facebookgo/subset v0.0.0-20200203212716-c811ad88dec4 // indirect
