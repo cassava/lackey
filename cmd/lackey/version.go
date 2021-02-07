@@ -41,10 +41,10 @@ The source code of {{.Name}} is licensed under the {{.License}} license.
 var progInfo = programInfo{
 	Name:      "lackey",
 	Author:    "Ben Morgan",
-	Email:     "neembi@gmail.com",
-	Version:   "0.5.1",
-	Date:      "",
-	Copyright: "2016–2020",
+	Email:     "cassava@iexu.de",
+	Version:   "0.6.0",
+	Date:      "7 February 2021",
+	Copyright: "2016–2021",
 	Homepage:  "https://github.com/cassava/lackey",
 	License:   "MIT",
 }

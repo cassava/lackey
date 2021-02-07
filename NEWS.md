@@ -1,7 +1,11 @@
 Lackey Releases
 ================
 
-## Version 0.4 (in development)
+## Version 0.6 (7 February 2021)
+This release adds the `--copy-suffix` option which allows you to force some
+audio files to be copied instead of transcoded.
+
+## Version 0.4
 This release adds OPUS encoding support.
 
 ## Version 0.3 (12 January 2017)

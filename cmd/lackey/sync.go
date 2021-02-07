@@ -19,6 +19,7 @@ var (
 	syncForceTranscode bool
 	syncConcurrent     int
 	syncDataExcept     []string
+	syncCopySuffix     []string
 
 	// MP3:
 	syncBitrateThreshold int
@@ -38,6 +39,7 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncDeleteBefore, "delete-before", "d", false, "delete extra files in destination")
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
 	syncCmd.Flags().StringSliceVarP(&syncDataExcept, "except", "e", []string{}, "data exceptions (filenames)")
+	syncCmd.Flags().StringSliceVarP(&syncCopySuffix, "copy-suffix", "c", []string{}, "audio types to copy instead of transcoding")
 
 	// MP3:
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold at which we copy instead of transcoding")
@@ -60,7 +62,7 @@ var syncCmd = &cobra.Command{
   destination.
 
   The relevant default options are as follows:
-  
+
     - it will follow symlinks (--follow-symlinks=true)
     - it will unconditionally convert non-MP3 music with the LAME encoder
       with a quality setting of 4 (--quality=4). See the LAME encoder on
@@ -109,6 +111,7 @@ var syncCmd = &cobra.Command{
 			Color:          col,
 			Encoder:        e,
 			ForceTranscode: syncForceTranscode,
+			CopyExtensions: syncCopySuffix,
 			DryRun:         syncDryRun,
 			Verbose:        Conf.Verbose,
 			Strip:          true,

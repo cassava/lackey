@@ -34,6 +34,7 @@ type Runner struct {
 
 	Encoder        Encoder
 	ForceTranscode bool
+	CopyExtensions []string
 
 	DryRun    bool
 	Verbose   bool
@@ -42,8 +43,14 @@ type Runner struct {
 	DstPrefix string
 }
 
-func (o *Runner) WhichExt(_ Audio) string {
+func (o *Runner) WhichExt(src Audio) string {
 	// At the moment, we always have the same kind of output
+	name := src.FileInfo().Name()
+	for _, ext := range o.CopyExtensions {
+		if strings.HasSuffix(name, ext) {
+			return ext
+		}
+	}
 	return o.Encoder.Ext()
 }
 
@@ -60,13 +67,32 @@ func (o *Runner) transcodeOrCopy(src, dst Audio) AudioOperation {
 }
 
 func (o *Runner) Which(src, dst Audio) AudioOperation {
-	// Find out when we can skip work.
+	// Files we should copy directly, we do so here
+	name := src.FileInfo().Name()
+	for _, ext := range o.CopyExtensions {
+		if strings.HasSuffix(name, ext) {
+			if dst.IsExists() {
+				sfi, dfi := src.FileInfo(), dst.FileInfo()
+				if dfi.Size() == 0 {
+					return CopyAudio
+				}
+				if sfi.ModTime().After(dfi.ModTime()) {
+					return CopyAudio
+				}
+				return SkipAudio
+			}
+			return CopyAudio
+		}
+	}
+
 	if !o.canEncode(src.Encoding()) {
 		return IgnoreAudio
 	}
+
 	if o.ForceTranscode {
 		return TranscodeAudio
 	}
+
 	if !dst.IsExists() {
 		return o.transcodeOrCopy(src, dst)
 	}

@@ -20,7 +20,6 @@
 //   mpg    -> Video
 //   pdf    -> Text
 //   png    -> Image
-//   stfolder   -> Unknown
 //   svg    -> Image
 //   wav    -> Audio
 //
@@ -144,6 +143,7 @@ var types = map[string]Type{
 	".midi": Audio,
 	".mka":  Audio,
 	".mp3":  Audio,
+	".m4a":  Audio,
 	".m4b":  Audio,
 	".mpc":  Audio,
 	".ogg":  Audio,
