@@ -66,4 +66,5 @@ type Operator interface {
 	CopyFile(src, dst string) error
 	Transcode(src, dst string, md Audio) error
 	Update(src, dst string, md Audio) error
+	DownscaleCover(src, dst string) error
 }

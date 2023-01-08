@@ -21,6 +21,11 @@ var (
 	syncDataExcept     []string
 	syncCopySuffix     []string
 
+	// Cover:
+	syncDownscaleCover bool
+	syncCoverSource    string
+	syncCoverTarget    string
+
 	// MP3:
 	syncBitrateThreshold int
 	syncTargetQuality    int
@@ -40,6 +45,10 @@ func init() {
 	syncCmd.Flags().BoolVarP(&syncOnlyMusic, "only-music", "m", false, "only synchronize music")
 	syncCmd.Flags().StringSliceVarP(&syncDataExcept, "except", "e", []string{}, "data exceptions (filenames)")
 	syncCmd.Flags().StringSliceVarP(&syncCopySuffix, "copy-suffix", "c", []string{}, "audio types to copy instead of transcoding")
+
+	syncCmd.Flags().BoolVarP(&syncDownscaleCover, "downscale-cover", "s", false, "downscale album covers, see options for naming")
+	syncCmd.Flags().StringVar(&syncCoverSource, "cover-source", "cover.jpg", "filename of source cover")
+	syncCmd.Flags().StringVar(&syncCoverTarget, "cover-target", "cover.jpg", "filename of target cover")
 
 	// MP3:
 	syncCmd.Flags().IntVarP(&syncBitrateThreshold, "threshold", "t", 256, "bitrate threshold at which we copy instead of transcoding")
@@ -122,6 +131,9 @@ var syncCmd = &cobra.Command{
 		p.IgnoreData = syncOnlyMusic
 		p.DeleteBefore = syncDeleteBefore
 		p.Concurrent = syncConcurrent
+		p.DownscaleCover = syncDownscaleCover
+		p.CoverSource = syncCoverSource
+		p.CoverTarget = syncCoverTarget
 		for _, except := range syncDataExcept {
 			p.DataExcept[except] = true
 		}

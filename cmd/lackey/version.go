@@ -42,9 +42,9 @@ var progInfo = programInfo{
 	Name:      "lackey",
 	Author:    "Ben Morgan",
 	Email:     "cassava@iexu.de",
-	Version:   "0.6.0",
-	Date:      "7 February 2021",
-	Copyright: "2016–2021",
+	Version:   "0.7.0",
+	Date:      "8 January 2023",
+	Copyright: "2016–2023",
 	Homepage:  "https://github.com/cassava/lackey",
 	License:   "MIT",
 }

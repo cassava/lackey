@@ -6,8 +6,10 @@ package lackey
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/Jeffail/tunny"
@@ -21,6 +23,10 @@ type Planner struct {
 	DeleteBefore bool
 	TranscodeAll bool
 	Concurrent   int
+
+	DownscaleCover bool
+	CoverSource    string
+	CoverTarget    string
 
 	op  Operator
 	src *Database
@@ -146,9 +152,13 @@ func (p *Planner) planDir(src, dst *Entry) error {
 
 // planFile synchronizes src to dst, which may be nil.
 func (p *Planner) planFile(src, dst *Entry) error {
-	path := p.dpath(src.RelPath())
+	path := p.dpath(p.dkey(src))
+	// Check our assumption, that dst is the data for path:
+	if dst != nil && path != p.dpath(dst.Key()) {
+		fmt.Printf("warn: destination path %q != stat data from %q", path, p.dpath(dst.Key()))
+	}
+
 	if src.IsMusic() {
-		path = p.dpath(p.dkey(src))
 		switch p.op.Which(src, dst) {
 		case SkipAudio:
 			return p.op.Ok(path)
@@ -182,7 +192,7 @@ func (p *Planner) planFile(src, dst *Entry) error {
 	} else if src.IsIgnored() {
 		return p.op.Ignore(path)
 	} else {
-		if p.IgnoreData != p.DataExcept[src.Filename()] {
+		if p.IgnoreData != p.DataExcept[src.Filename()] && src.Filename() != p.CoverSource {
 			// We land in here when:
 			// - Ignore all data (true) and there is no exception (false)
 			// - Do not ignore all data (false) and there is an exception (true)
@@ -191,6 +201,10 @@ func (p *Planner) planFile(src, dst *Entry) error {
 
 		if dst != nil && dst.FileInfo().ModTime().After(src.FileInfo().ModTime()) {
 			return p.op.Ok(path)
+		}
+
+		if p.DownscaleCover && src.Filename() == p.CoverSource {
+			return p.op.DownscaleCover(src.AbsPath(), path)
 		}
 		return p.op.CopyFile(src.AbsPath(), path)
 	}
@@ -204,6 +218,13 @@ func (p *Planner) dpath(key string) string {
 // dkey returns the destination key, which also takes into account whether the
 // file should be transcoded or not.
 func (p *Planner) dkey(src *Entry) string {
+	if src.Filename() == p.CoverSource && p.CoverSource != p.CoverTarget {
+		if p.CoverTarget == "" {
+			return src.Key()
+		}
+		return strings.Replace(src.Key(), p.CoverSource, p.CoverTarget, 1)
+	}
+
 	if !src.IsMusic() {
 		return src.Key()
 	}

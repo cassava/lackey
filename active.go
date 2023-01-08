@@ -192,7 +192,7 @@ func (o *Runner) CopyFile(src, dst string) error {
 	return osutil.CopyFile(src, path)
 }
 
-func (o *Runner) Transcode(src string, dst string, md Audio) error {
+func (o *Runner) Transcode(src, dst string, md Audio) error {
 	path := dst
 	if o.Strip {
 		dst = strings.TrimPrefix(dst, o.DstPrefix)
@@ -212,7 +212,28 @@ func (o *Runner) Transcode(src string, dst string, md Audio) error {
 	return o.Encoder.Encode(src, path, md)
 }
 
-func (o *Runner) Update(src string, dst string, md Audio) error {
+func (o *Runner) DownscaleCover(src, dst string) error {
+	path := dst
+	if o.Strip {
+		dst = strings.TrimPrefix(dst, o.DstPrefix)
+	}
+	o.Color.Printf("@gscale:@|    %s\n", dst)
+
+	if o.DryRun {
+		return nil
+	}
+
+	bs, err := exec.Command("convert", src, "-resize", "500x500", "-quality", "60%", path).CombinedOutput()
+	if err != nil {
+		return &ExecError{
+			Err:    err,
+			Output: string(bs),
+		}
+	}
+	return nil
+}
+
+func (o *Runner) Update(src, dst string, md Audio) error {
 	path := dst
 	if o.Strip {
 		dst = strings.TrimPrefix(dst, o.DstPrefix)
