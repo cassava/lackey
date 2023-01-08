@@ -58,4 +58,24 @@ to take up even less space, you can increase the quality setting and reduce the
 threshold at which it is converted.
 If you want to configure even more, let me know and I'll see what I can do.
 
-Enjoy!
+
+### With Docker
+
+There's a Docker image now that lets you easily automate this task in a job.
+
+Build the image first:
+
+    docker build -t lackey:latest .
+
+Run the image like so:
+
+    docker run --rm -it \
+      -v $(pwd)/hifi:/mnt/hifi:ro \
+      -v $(pwd)/lofi:/mnt/lofi \
+      lackey:nightly \
+      lackey -L /mnt/hifi sync -s --cover-target folder.jpg -m -d --bitrate 192k --opus --threshold 192 /mnt/lofi
+
+Of course, adjust the parameters as required. This worked pretty well for me.
+Note that I mounted my source directory as read-only (`:ro`), which protects
+it from mistakes in `lackey` as well as mistakes I might make in the call.
+I highly highly recommend you protect your source material in one way or another.

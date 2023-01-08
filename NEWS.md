@@ -1,6 +1,11 @@
 Lackey Releases
 ================
 
+## Version 0.7 (8 January 2023)
+This release adds a Dockerfile and the options to downscale an album
+cover when copying it. See options: `--downscale-cover`, `--cover-source`,
+and `--cover-target`.
+
 ## Version 0.6 (7 February 2021)
 This release adds the `--copy-suffix` option which allows you to force some
 audio files to be copied instead of transcoded.
