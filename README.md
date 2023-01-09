@@ -72,10 +72,21 @@ Run the image like so:
     docker run --rm -it \
       -v $(pwd)/hifi:/mnt/hifi:ro \
       -v $(pwd)/lofi:/mnt/lofi \
-      lackey:nightly \
+      lackey:latest \
       lackey -L /mnt/hifi sync -s --cover-target folder.jpg -m -d --bitrate 192k --opus --threshold 192 /mnt/lofi
 
 Of course, adjust the parameters as required. This worked pretty well for me.
 Note that I mounted my source directory as read-only (`:ro`), which protects
 it from mistakes in `lackey` as well as mistakes I might make in the call.
 I highly highly recommend you protect your source material in one way or another.
+
+If you want to run the image as a service, you can do that too:
+
+    docker run --rm \
+      -v $(pwd)/hifi:/mnt/hifi:ro \
+      -v $(pwd)/lofi:/mnt/lofi \
+      -p 8080:8080 \
+      lackey:latest
+
+This will spawn a service that runs continuously in the background and lets you
+interactively spawn a job by visiting the port in a browser.

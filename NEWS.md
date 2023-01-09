@@ -1,6 +1,14 @@
 Lackey Releases
 ================
 
+## Version 0.8 (9 January 2023)
+This release turns the Docker image into one that uses [gotty](https://github.com/sorenisanerd/gotty)
+to provide a service by default. This provides a simple web server
+to view the previous or current progress of a job and start a new one.
+
+A port is opened on 8080. You can completely override this by overriding
+the default command that is run.
+
 ## Version 0.7 (8 January 2023)
 This release adds a Dockerfile and the options to downscale an album
 cover when copying it. See options: `--downscale-cover`, `--cover-source`,
