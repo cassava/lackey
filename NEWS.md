@@ -1,6 +1,10 @@
 Lackey Releases
 ================
 
+## Version 0.8.1 (10 January 2023)
+This release optimizes the size of the Docker image produced from 1.8G
+to just over 500M.
+
 ## Version 0.8 (9 January 2023)
 This release turns the Docker image into one that uses [gotty](https://github.com/sorenisanerd/gotty)
 to provide a service by default. This provides a simple web server
